@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { UnflagContextValue } from '../createUnflagReact';
 import { OverrideControl } from './OverrideControl';
-import { positions, styles } from './styles';
+import { positions, styles, type PanelPosition } from './styles';
 
 const PREVIEW_MAX = 80;
 
@@ -22,7 +22,7 @@ export function UnflagDevPanel({
   position = 'bottom-right',
 }: {
   useUnflag: () => UnflagContextValue<Record<string, unknown>>;
-  position?: keyof typeof positions;
+  position?: PanelPosition;
 }) {
   const unflag = useUnflag();
   const [open, setOpen] = useState(false);

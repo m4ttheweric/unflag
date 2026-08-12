@@ -203,7 +203,7 @@ to `['**/*.features.ts', '**/features/**']` when omitted.
 | `FeatureSet#graph` | `() => Record<Extract<keyof F, string>, Record<string, readonly string[]>>` |
 | `FeatureSet#builder` | `(baseline: InputValues<I>) => (overrides?: Partial<StateOf<F>>) => StateOf<F>` |
 | `createUnflagReact` | `<I extends InputsShape, F,>(featureSet: FeatureSet<I, F>) => { UnflagProvider, useFeatures, useUnflag }` |
-| `UnflagDevPanel` | `(props: { useUnflag: () => UnflagContextValue<Record<string, unknown>>; position?: keyof typeof positions }) => JSX.Element` |
+| `UnflagDevPanel` | `(props: { useUnflag: () => UnflagContextValue<Record<string, unknown>>; position?: PanelPosition }) => JSX.Element` |
 
 ## Design notes
 

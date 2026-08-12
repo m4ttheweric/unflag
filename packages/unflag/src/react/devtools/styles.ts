@@ -6,12 +6,14 @@ const fg = dark ? '#f2f2f2' : '#1c1c1e';
 const border = dark ? '#3a3a3c' : '#d4d4d8';
 const accent = '#6366f1';
 
-export const positions: Record<string, CSSProperties> = {
+export const positions = {
   'bottom-right': { bottom: 16, right: 16 },
   'bottom-left': { bottom: 16, left: 16 },
   'top-right': { top: 16, right: 16 },
   'top-left': { top: 16, left: 16 },
-};
+} as const satisfies Record<string, CSSProperties>;
+
+export type PanelPosition = keyof typeof positions;
 
 export const styles = {
   trigger: {
