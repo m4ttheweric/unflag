@@ -57,4 +57,54 @@ describe('provenance', () => {
     const result = make().resolve({ flags: { a: true, b: false } });
     expect(result.provenance.declared.actualReads).toHaveLength(1);
   });
+
+  it('does not record inherited/prototype property reads as violations', () => {
+    const seen: Violation[] = [];
+    const set = defineFeatures({
+      inputs: { flags: input<Flags>() },
+      onViolation: v => seen.push(v),
+      features: {
+        coercive: {
+          reads: { flags: ['a'] },
+          output: z.string(),
+          resolve: ({ flags }) => {
+            String(flags);
+            flags.hasOwnProperty('a');
+            return flags.a ? 'yes' : 'no';
+          },
+        },
+      },
+    });
+    const result = set.resolve({ flags: { a: true, b: false } });
+    expect(result.provenance.coercive.actualReads).toEqual([
+      { input: 'flags', key: 'a', value: true },
+    ]);
+    expect(seen).toEqual([]);
+  });
+
+  it('does not abort resolve when a violation handler throws', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const set = defineFeatures({
+      inputs: { flags: input<Flags>() },
+      onViolation: () => {
+        throw new Error('boom');
+      },
+      features: {
+        declared: {
+          reads: { flags: ['a'] },
+          output: z.boolean(),
+          resolve: ({ flags }) => flags.a,
+        },
+        sneaky: {
+          reads: { flags: ['a'] },
+          output: z.boolean(),
+          resolve: ({ flags }) => flags.a && flags.b,
+        },
+      },
+    });
+    const result = set.resolve({ flags: { a: true, b: false } });
+    expect(result.state).toEqual({ declared: true, sneaky: false });
+    expect(error).toHaveBeenCalledWith('[unflag] onViolation handler threw: boom');
+    error.mockRestore();
+  });
 });

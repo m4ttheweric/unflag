@@ -35,7 +35,14 @@ export function resolveFeatures(
           ? recordingProxy(inputName, inputValue as object, read => {
               reads.push(read);
               if (!(declared[inputName] ?? []).includes(read.key)) {
-                handler({ feature: key, input: inputName, key: read.key });
+                try {
+                  handler({ feature: key, input: inputName, key: read.key });
+                } catch (err) {
+                  if (!isProd()) {
+                    const message = err instanceof Error ? err.message : String(err);
+                    console.error(`[unflag] onViolation handler threw: ${message}`);
+                  }
+                }
               }
             })
           : inputValue;

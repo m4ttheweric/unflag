@@ -8,7 +8,7 @@ export function recordingProxy<T extends object>(
   return new Proxy(value, {
     get(target, prop, receiver) {
       const v = Reflect.get(target, prop, receiver);
-      if (typeof prop === 'string') {
+      if (typeof prop === 'string' && Object.prototype.hasOwnProperty.call(target, prop)) {
         onRead({ input: inputName, key: prop, value: v });
       }
       return v;
