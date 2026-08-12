@@ -47,7 +47,23 @@ export function resolveFeatures(
             })
           : inputValue;
     }
-    const value = def.resolve(proxied);
+    let value: unknown;
+    try {
+      value = def.resolve(proxied);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(`[unflag] feature "${key}" resolver threw: ${msg}`, { cause: e });
+    }
+
+    if (!isProd()) {
+      const parsed = def.output.safeParse(value);
+      if (!parsed.success) {
+        throw new Error(
+          `[unflag] feature "${key}" resolved a value that does not match its output schema: ${parsed.error.message}`,
+        );
+      }
+    }
+
     state[key] = value;
     provenance[key] = { value, declaredReads: declared, actualReads: reads, overridden: false };
   }
