@@ -1,1 +1,1 @@
-export {};
+export { UnflagDevPanel } from './UnflagDevPanel';
