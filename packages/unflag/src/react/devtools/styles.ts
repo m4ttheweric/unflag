@@ -24,10 +24,33 @@ export const styles = {
     background: bg, color: fg, border: `1px solid ${border}`, borderRadius: 12,
     boxShadow: '0 8px 30px rgba(0,0,0,.25)', font: '13px system-ui, sans-serif', padding: 12,
   },
-  row: { borderBottom: `1px solid ${border}`, padding: '8px 0' },
-  rowHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  name: { fontWeight: 600 },
-  value: { fontFamily: 'ui-monospace, monospace', fontSize: 12 },
+  // Sticky so the filter and counts stay reachable while scrolling a long list.
+  // The negative offsets cancel the panel's own 12px padding so nothing peeks out above.
+  header: {
+    position: 'sticky', top: -12, background: bg, zIndex: 1,
+    margin: '-12px -12px 0', padding: '12px 12px 8px',
+    borderBottom: `1px solid ${border}`,
+  },
+  filter: {
+    width: '100%', boxSizing: 'border-box' as const, padding: '4px 8px',
+    background: 'transparent', color: fg, border: `1px solid ${border}`,
+    borderRadius: 6, font: '12px system-ui, sans-serif',
+  },
+  counts: { fontSize: 11, opacity: 0.75, marginTop: 6 },
+  row: { borderBottom: `1px solid ${border}` },
+  rowHead: {
+    display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+    background: 'none', border: 'none', color: fg, cursor: 'pointer',
+    padding: '8px 0', textAlign: 'left' as const, font: 'inherit',
+  },
+  chevron: { opacity: 0.5, fontSize: 10, width: 8, flexShrink: 0 },
+  name: { fontWeight: 600, flexShrink: 0 },
+  value: {
+    fontFamily: 'ui-monospace, monospace', fontSize: 12, opacity: 0.8,
+    flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const,
+  },
+  detail: { padding: '0 0 8px 16px' },
+  empty: { fontSize: 12, opacity: 0.6, padding: '12px 0' },
   badge: {
     background: accent, color: '#fff', borderRadius: 4, padding: '1px 6px',
     fontSize: 10, textTransform: 'uppercase' as const,

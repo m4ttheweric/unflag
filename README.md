@@ -139,10 +139,17 @@ applied; anything that fails validation is discarded and recorded in
 `discardedOverrides` / `staleOverrideDiscarded` rather than silently used.
 
 `UnflagDevPanel` is the in-browser surface for that layer: a small floating
-trigger that expands into a per-feature list showing the current value, an
-"overridden" badge with the value it would otherwise be, an editor for
-setting a new override (validated against the same schema), a "why?"
-disclosure backed by `explain()`, and a clear-all control. It takes the
+trigger that expands into a scannable list of compact rows, one per feature,
+each showing the feature name, a truncated one-line preview of its current
+value, and an "overridden" badge. A filter input narrows the list by name,
+and a counts line reports how many features exist, how many are overridden,
+and how many the filter is showing. Clicking a row expands it (one at a
+time) to reveal the detail: the value it would otherwise be, an editor for
+setting a new override (validated against the same schema), a reset control,
+and a "why?" disclosure backed by `explain()`. Clear-all sits in the footer.
+Detail is mounted only for the expanded row, so a set with hundreds of
+features costs hundreds of cheap rows rather than hundreds of live editors
+and stays responsive. It takes the
 `useUnflag` hook produced by `createUnflagReact` as a prop
 (`<UnflagDevPanel useUnflag={useUnflag} />`) rather than reading context
 directly, so it stays decoupled from any single feature set.

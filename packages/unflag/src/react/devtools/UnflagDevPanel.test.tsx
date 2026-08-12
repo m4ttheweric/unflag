@@ -42,6 +42,39 @@ const renderPanel = () =>
     </UnflagProvider>,
   );
 
+/** Mutates an override from outside the panel, so no row has to be expanded to do it. */
+function ExternalMutator() {
+  const unflag = useUnflag();
+  return (
+    <button type="button" onClick={() => unflag.setOverride('betaBanner', false)}>
+      override betaBanner externally
+    </button>
+  );
+}
+
+const renderPanelWithExternalMutator = () =>
+  render(
+    <UnflagProvider inputs={{ flags: { chat: false, beta: true } }} enableOverrides storageKey="unflag.panel">
+      <ExternalMutator />
+      <UnflagDevPanel useUnflag={useUnflag} />
+    </UnflagProvider>,
+  );
+
+/**
+ * Rows are collapsed by default, so every test that touches a feature's controls
+ * (override chips, toggle, JSON editor, why?) has to expand its row first. The row
+ * button's accessible name is its content -- name plus value preview -- so match on
+ * the leading feature name only. `\b` keeps `stress2` from matching `stress20`.
+ */
+const rowButton = (name: string) =>
+  screen.getByRole('button', { name: new RegExp(`^${name}\\b`) });
+
+const expandRow = (name: string) => userEvent.click(rowButton(name));
+
+const openPanel = () => userEvent.click(screen.getByRole('button', { name: 'unflag' }));
+
+const filterInput = () => screen.getByRole('searchbox', { name: 'filter features' });
+
 beforeEach(() => window.localStorage.clear());
 
 describe('UnflagDevPanel', () => {
@@ -57,6 +90,7 @@ describe('UnflagDevPanel', () => {
   it('renders a selector for enum features and applies an override', async () => {
     renderPanel();
     await userEvent.click(screen.getByRole('button', { name: 'unflag' }));
+    await expandRow('chatExperience');
     await userEvent.click(screen.getByRole('button', { name: 'emma-chat' }));
     expect(screen.getByText('overridden')).toBeDefined();
     expect(screen.getByText('"emma-chat"')).toBeDefined();
@@ -65,6 +99,7 @@ describe('UnflagDevPanel', () => {
   it('renders a toggle for boolean features', async () => {
     renderPanel();
     await userEvent.click(screen.getByRole('button', { name: 'unflag' }));
+    await expandRow('betaBanner');
     const toggle = screen.getByRole('checkbox', { name: 'override betaBanner' });
     await userEvent.click(toggle);
     expect(screen.getByText('overridden')).toBeDefined();
@@ -73,6 +108,7 @@ describe('UnflagDevPanel', () => {
   it('renders a JSON editor for object features and rejects invalid JSON', async () => {
     renderPanel();
     await userEvent.click(screen.getByRole('button', { name: 'unflag' }));
+    await expandRow('limits');
     const editor = screen.getByRole('textbox', { name: 'override limits' });
     await userEvent.clear(editor);
     await userEvent.type(editor, 'not json');
@@ -84,6 +120,7 @@ describe('UnflagDevPanel', () => {
   it('clear-all removes overrides', async () => {
     renderPanel();
     await userEvent.click(screen.getByRole('button', { name: 'unflag' }));
+    await expandRow('chatExperience');
     await userEvent.click(screen.getByRole('button', { name: 'emma-chat' }));
     await userEvent.click(screen.getByRole('button', { name: 'clear all overrides' }));
     expect(screen.queryByText('overridden')).toBeNull();
@@ -92,6 +129,7 @@ describe('UnflagDevPanel', () => {
   it('shows explain output in the provenance expander', async () => {
     renderPanel();
     await userEvent.click(screen.getByRole('button', { name: 'unflag' }));
+    await expandRow('chatExperience');
     await userEvent.click(screen.getByRole('button', { name: 'why chatExperience' }));
     expect(
       screen.getByText(`chatExperience = "disabled" (flags['chat'] = false)`),
@@ -101,6 +139,7 @@ describe('UnflagDevPanel', () => {
   it('resyncs the JSON editor to external value changes and does not re-apply stale text on blur after clear-all', async () => {
     renderPanel();
     await userEvent.click(screen.getByRole('button', { name: 'unflag' }));
+    await expandRow('limits');
     const editor = screen.getByRole('textbox', { name: 'override limits' }) as HTMLTextAreaElement;
 
     await userEvent.clear(editor);
@@ -118,9 +157,10 @@ describe('UnflagDevPanel', () => {
     expect(window.localStorage.getItem('unflag.panel')).toBeNull();
   });
 
-  it('does not wipe in-progress unsaved edits when an unrelated row changes', async () => {
-    renderPanel();
+  it('does not wipe in-progress unsaved edits when an unrelated feature changes', async () => {
+    renderPanelWithExternalMutator();
     await userEvent.click(screen.getByRole('button', { name: 'unflag' }));
+    await expandRow('limits');
     const editor = screen.getByRole('textbox', { name: 'override limits' }) as HTMLTextAreaElement;
 
     // Apply an override on limits so its `value` prop is now overridden-derived.
@@ -134,11 +174,12 @@ describe('UnflagDevPanel', () => {
     await userEvent.clear(editor);
     await userEvent.paste('{"maxOpen": 123');
 
-    // Toggle an unrelated row. This changes the `overrides` map (new reference), which
-    // recomputes `result` and gives every provenance entry -- including limits' -- a
-    // fresh (but content-equal) object, even though limits' own override didn't change.
-    const toggle = screen.getByRole('checkbox', { name: 'override betaBanner' });
-    await userEvent.click(toggle);
+    // Override an unrelated feature. This changes the `overrides` map (new reference),
+    // which recomputes `result` and gives every provenance entry -- including limits' --
+    // a fresh (but content-equal) object, even though limits' own override didn't change.
+    // Driven from outside the panel because rows are an accordion now: expanding another
+    // row to reach its control would unmount this editor, which is not what's under test.
+    await userEvent.click(screen.getByRole('button', { name: 'override betaBanner externally' }));
 
     expect(editor.value).toBe('{"maxOpen": 123');
   });
@@ -150,6 +191,147 @@ describe('UnflagDevPanel', () => {
     expect(screen.getByText('chatExperience')).toBeDefined();
     expect(screen.getByText('betaBanner')).toBeDefined();
     expect(screen.getByText('limits')).toBeDefined();
+    await expandRow('releaseDate');
     expect(screen.getByRole('textbox', { name: 'override releaseDate' })).toBeDefined();
+  });
+});
+
+// Dynamic feature keys defeat the literal-object inference path of `defineFeatures`,
+// so the record is built loosely and cast at the boundary -- the point here is a
+// many-row panel, not static inference.
+type StressDef = {
+  reads: { dial: readonly [string] };
+  output: z.ZodType;
+  resolve: (inputs: { dial: Record<string, boolean> }) => unknown;
+};
+
+function buildStressFeatures(count: number) {
+  const features: Record<string, StressDef> = {};
+  const dial: Record<string, boolean> = {};
+  for (let i = 0; i < count; i++) {
+    const dialKey = `d${i}`;
+    dial[dialKey] = i % 2 === 0;
+    const kind = i % 3;
+    features[`stress${i}`] =
+      kind === 0
+        ? {
+            reads: { dial: [dialKey] },
+            output: z.enum(['alpha', 'bravo']),
+            resolve: ({ dial: d }) => (d[dialKey] ? 'alpha' : 'bravo'),
+          }
+        : kind === 1
+          ? {
+              reads: { dial: [dialKey] },
+              output: z.boolean(),
+              resolve: ({ dial: d }) => Boolean(d[dialKey]),
+            }
+          : {
+              reads: { dial: [dialKey] },
+              output: z.object({ items: z.array(z.object({ id: z.number(), label: z.string() })) }),
+              resolve: ({ dial: d }) => ({
+                items: Array.from({ length: 40 }, (_, j) => ({
+                  id: i * 100 + j,
+                  label: `stress${i}-item${j}-${d[dialKey] ? 'on' : 'off'}`,
+                })),
+              }),
+            };
+  }
+  return { featureSet: defineFeatures({ inputs: { dial: input<Record<string, boolean>>() }, features } as never), dial };
+}
+
+describe('UnflagDevPanel with large feature sets', () => {
+  it('filters the visible rows by a case-insensitive substring of the feature name', async () => {
+    renderPanel();
+    await openPanel();
+
+    await userEvent.type(filterInput(), 'BET');
+
+    expect(screen.getByText('betaBanner')).toBeDefined();
+    expect(screen.queryByText('chatExperience')).toBeNull();
+    expect(screen.queryByText('limits')).toBeNull();
+    expect(screen.queryByText('releaseDate')).toBeNull();
+  });
+
+  it('says so when the filter matches nothing', async () => {
+    renderPanel();
+    await openPanel();
+
+    await userEvent.type(filterInput(), 'nosuchfeature');
+
+    expect(screen.getByText('no features match')).toBeDefined();
+    expect(screen.getByText('4 features · 0 overridden · 0 shown')).toBeDefined();
+    expect(screen.queryByText('chatExperience')).toBeNull();
+  });
+
+  it('reports total, overridden and shown counts', async () => {
+    renderPanel();
+    await openPanel();
+    expect(screen.getByText('4 features · 0 overridden · 4 shown')).toBeDefined();
+
+    await expandRow('chatExperience');
+    await userEvent.click(screen.getByRole('button', { name: 'emma-chat' }));
+    expect(screen.getByText('4 features · 1 overridden · 4 shown')).toBeDefined();
+
+    await userEvent.type(filterInput(), 'beta');
+    expect(screen.getByText('4 features · 1 overridden · 1 shown')).toBeDefined();
+  });
+
+  it('mounts no override controls while rows are collapsed', async () => {
+    const { featureSet: stressSet, dial } = buildStressFeatures(30);
+    const { UnflagProvider: StressProvider, useUnflag: useStressUnflag } = createUnflagReact(stressSet);
+    render(
+      <StressProvider inputs={{ dial }} enableOverrides storageKey="unflag.stress">
+        <UnflagDevPanel useUnflag={useStressUnflag} />
+      </StressProvider>,
+    );
+    await openPanel();
+
+    // 30 rows are listed, but nothing interactive beyond the row buttons is mounted:
+    // no JSON textareas, no boolean toggles, no enum chips.
+    expect(screen.getByText('stress2')).toBeDefined();
+    expect(screen.queryAllByRole('textbox')).toHaveLength(0);
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+    expect(screen.queryAllByRole('button', { name: 'alpha' })).toHaveLength(0);
+
+    await expandRow('stress2');
+
+    expect(screen.queryAllByRole('textbox')).toHaveLength(1);
+    expect(screen.getByRole('textbox', { name: 'override stress2' })).toBeDefined();
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+  });
+
+  it('expands one row at a time and marks expansion state on the row button', async () => {
+    renderPanel();
+    await openPanel();
+    expect(rowButton('chatExperience').getAttribute('aria-expanded')).toBe('false');
+
+    await expandRow('chatExperience');
+    expect(rowButton('chatExperience').getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'emma-chat' })).toBeDefined();
+
+    await expandRow('betaBanner');
+    expect(rowButton('betaBanner').getAttribute('aria-expanded')).toBe('true');
+    expect(rowButton('chatExperience').getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('button', { name: 'emma-chat' })).toBeNull();
+    expect(screen.getByRole('checkbox', { name: 'override betaBanner' })).toBeDefined();
+
+    await expandRow('betaBanner');
+    expect(rowButton('betaBanner').getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('checkbox', { name: 'override betaBanner' })).toBeNull();
+  });
+
+  it('truncates a long value preview in the collapsed row', async () => {
+    const { featureSet: stressSet, dial } = buildStressFeatures(3);
+    const { UnflagProvider: StressProvider, useUnflag: useStressUnflag } = createUnflagReact(stressSet);
+    render(
+      <StressProvider inputs={{ dial }} enableOverrides storageKey="unflag.stress">
+        <UnflagDevPanel useUnflag={useStressUnflag} />
+      </StressProvider>,
+    );
+    await openPanel();
+
+    const preview = screen.getByText(/^\{"items":/);
+    expect(preview.textContent!.length).toBeLessThanOrEqual(81);
+    expect(preview.textContent!.endsWith('…')).toBe(true);
   });
 });
