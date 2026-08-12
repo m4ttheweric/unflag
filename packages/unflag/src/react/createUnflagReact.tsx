@@ -1,4 +1,6 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, {
+  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
+} from 'react';
 import type { z } from 'zod/v4';
 import { applyOverrides } from '../core/overrides';
 import { explain as coreExplain } from '../core/explain';
@@ -51,13 +53,23 @@ export function createUnflagReact<I extends InputsShape, F>(featureSet: FeatureS
       [base, overrides],
     );
 
-    const update = useCallback(
-      (next: Record<string, unknown>) => {
-        setOverrides(next);
-        writeOverrides(storageKey, next);
-      },
-      [storageKey],
-    );
+    // Persistence is intentionally decoupled from the mutators below: each mutator only
+    // computes the next `overrides` value via a functional `setOverrides` updater, so
+    // multiple mutations inside one React batch (one `act`/event handler) compose instead
+    // of clobbering each other on a stale closure. This effect is the single place that
+    // writes to storage, keyed off the settled `overrides` value.
+    const skipFirstPersist = useRef(true);
+    useEffect(() => {
+      if (!enableOverrides) return;
+      if (skipFirstPersist.current) {
+        // Skip the mount-time run: `overrides` was just read from storage (or is empty
+        // because nothing was stored), so writing it back is a no-op at best and, for the
+        // empty case, an avoidable `removeItem` call against a key that was never set.
+        skipFirstPersist.current = false;
+        return;
+      }
+      writeOverrides(storageKey, overrides);
+    }, [enableOverrides, storageKey, overrides]);
 
     const setOverride = useCallback(
       (key: string, value: unknown) => {
@@ -69,20 +81,19 @@ export function createUnflagReact<I extends InputsShape, F>(featureSet: FeatureS
           }
           return;
         }
-        update({ ...overrides, [key]: value });
+        setOverrides(prev => ({ ...prev, [key]: value }));
       },
-      [enableOverrides, overrides, update],
+      [enableOverrides],
     );
 
-    const clearOverride = useCallback(
-      (key: string) => {
-        const { [key]: _, ...rest } = overrides;
-        update(rest);
-      },
-      [overrides, update],
-    );
+    const clearOverride = useCallback((key: string) => {
+      setOverrides(prev => {
+        const { [key]: _removed, ...rest } = prev;
+        return rest;
+      });
+    }, []);
 
-    const clearAll = useCallback(() => update({}), [update]);
+    const clearAll = useCallback(() => setOverrides({}), []);
 
     const value = useMemo(
       (): UnflagContextValue<State> => ({

@@ -103,6 +103,42 @@ describe('createUnflagReact', () => {
     expect(JSON.parse(window.localStorage.getItem('unflag') ?? '{}')).toEqual({});
   });
 
+  it('composes multiple setOverride calls made in the same batch', () => {
+    renderApp({ enableOverrides: true, storageKey: 'unflag.batch' });
+    act(() => {
+      handle.setOverride('chatExperience', 'emma-chat');
+      handle.setOverride('otherFlag', 'ignored-but-tracked');
+    });
+    expect(handle.overrides).toEqual({
+      chatExperience: 'emma-chat',
+      otherFlag: 'ignored-but-tracked',
+    });
+    expect(JSON.parse(window.localStorage.getItem('unflag.batch')!)).toEqual({
+      chatExperience: 'emma-chat',
+      otherFlag: 'ignored-but-tracked',
+    });
+  });
+
+  it('composes a setOverride followed by a clearOverride of a different key in the same batch', () => {
+    renderApp({ enableOverrides: true, storageKey: 'unflag.batch2' });
+    act(() => {
+      handle.setOverride('chatExperience', 'emma-chat');
+      handle.setOverride('otherFlag', 'value');
+    });
+    act(() => {
+      handle.setOverride('anotherFlag', 'value2');
+      handle.clearOverride('otherFlag');
+    });
+    expect(handle.overrides).toEqual({
+      chatExperience: 'emma-chat',
+      anotherFlag: 'value2',
+    });
+    expect(JSON.parse(window.localStorage.getItem('unflag.batch2')!)).toEqual({
+      chatExperience: 'emma-chat',
+      anotherFlag: 'value2',
+    });
+  });
+
   it('exposes explain through the handle', () => {
     renderApp({ chat: true });
     expect(handle.explain('chatExperience')).toBe(
