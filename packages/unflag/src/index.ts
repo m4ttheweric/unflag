@@ -1,5 +1,6 @@
 export { applyOverrides } from './core/overrides';
 export { defineFeatures, input } from './core/define';
+export { explain } from './core/explain';
 export {
   SCHEMAS,
   type FeatureProvenance, type FeatureSet, type InferState, type InputMarker,
