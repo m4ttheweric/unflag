@@ -1,0 +1,25 @@
+{
+  "name": "eslint-plugin-unflag",
+  "version": "0.0.0",
+  "type": "module",
+  "sideEffects": false,
+  "files": ["dist"],
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/index.cjs" }
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean"
+  },
+  "dependencies": { "picomatch": "^4.0.2" },
+  "peerDependencies": { "eslint": ">=9" },
+  "devDependencies": {
+    "@types/picomatch": "^3.0.1",
+    "@typescript-eslint/parser": "^8.15.0",
+    "eslint": "^9.15.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

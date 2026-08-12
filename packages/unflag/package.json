@@ -1,0 +1,39 @@
+{
+  "name": "unflag",
+  "version": "0.0.0",
+  "type": "module",
+  "sideEffects": false,
+  "files": ["dist"],
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/index.cjs" },
+    "./react": { "types": "./dist/react/index.d.ts", "import": "./dist/react/index.js", "require": "./dist/react/index.cjs" },
+    "./react/devtools": { "types": "./dist/react/devtools/index.d.ts", "import": "./dist/react/devtools/index.js", "require": "./dist/react/devtools/index.cjs" }
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "build": "tsup"
+  },
+  "peerDependencies": {
+    "zod": ">=3.25",
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true },
+    "react-dom": { "optional": true }
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "jsdom": "^25.0.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0",
+    "zod": "^3.25.0"
+  }
+}
