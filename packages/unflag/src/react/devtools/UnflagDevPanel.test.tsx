@@ -118,6 +118,31 @@ describe('UnflagDevPanel', () => {
     expect(window.localStorage.getItem('unflag.panel')).toBeNull();
   });
 
+  it('does not wipe in-progress unsaved edits when an unrelated row changes', async () => {
+    renderPanel();
+    await userEvent.click(screen.getByRole('button', { name: 'unflag' }));
+    const editor = screen.getByRole('textbox', { name: 'override limits' }) as HTMLTextAreaElement;
+
+    // Apply an override on limits so its `value` prop is now overridden-derived.
+    await userEvent.clear(editor);
+    await userEvent.paste('{"maxOpen": 9}');
+    await userEvent.tab();
+    expect(screen.getByText('overridden')).toBeDefined();
+
+    // Start editing again, but do NOT blur -- this is in-progress, unsaved text.
+    await userEvent.click(editor);
+    await userEvent.clear(editor);
+    await userEvent.paste('{"maxOpen": 123');
+
+    // Toggle an unrelated row. This changes the `overrides` map (new reference), which
+    // recomputes `result` and gives every provenance entry -- including limits' -- a
+    // fresh (but content-equal) object, even though limits' own override didn't change.
+    const toggle = screen.getByRole('checkbox', { name: 'override betaBanner' });
+    await userEvent.click(toggle);
+
+    expect(editor.value).toBe('{"maxOpen": 123');
+  });
+
   it('falls back to a JSON editor for schemas that z.toJSONSchema cannot represent', async () => {
     renderPanel();
     await userEvent.click(screen.getByRole('button', { name: 'unflag' }));

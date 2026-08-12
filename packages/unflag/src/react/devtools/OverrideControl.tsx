@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { z } from 'zod/v4';
 import { styles } from './styles';
 
@@ -64,13 +64,21 @@ function JsonEditor({
 }: { name: string; value: unknown; onApply: (value: unknown) => void }) {
   const [text, setText] = useState(() => JSON.stringify(value, null, 2));
   const [error, setError] = useState<string | null>(null);
+  // Tracks the serialization of `value` as of the last resync, so the effect below can
+  // tell a genuine content change (e.g. another control cleared this override) apart from
+  // a same-content-but-new-reference `value` (e.g. `applyOverrides` re-running because an
+  // unrelated feature's override changed, which produces a fresh object for every entry).
+  // Keying the effect on `value` by reference alone would fire on the latter too, wiping
+  // any in-progress unsaved edit in this textarea.
+  const lastSynced = useRef(text);
 
-  // Resync local text to the external value whenever it changes (e.g. another control
-  // cleared the override): otherwise this editor keeps showing stale text, and a later
-  // blur would silently re-parse and re-apply an override the user just cleared.
   useEffect(() => {
-    setText(JSON.stringify(value, null, 2));
-    setError(null);
+    const incoming = JSON.stringify(value, null, 2);
+    if (incoming !== lastSynced.current) {
+      lastSynced.current = incoming;
+      setText(incoming);
+      setError(null);
+    }
   }, [value]);
 
   return (
