@@ -1,7 +1,8 @@
 import type { z } from 'zod/v4';
+import { recordingProxy } from './proxy';
 import {
-  SCHEMAS,
-  type FeatureProvenance, type InputsShape, type ResolveOptions, type ResolveResult,
+  SCHEMAS, isProd,
+  type FeatureProvenance, type InputsShape, type Read, type ResolveOptions, type ResolveResult,
 } from './types';
 
 type AnyFeatureDef = { reads: Record<string, readonly string[] | undefined>; output: z.ZodType; resolve: (inputs: unknown) => unknown };
@@ -10,20 +11,38 @@ export type AnyConfig = { inputs: InputsShape; features: Record<string, AnyFeatu
 export function resolveFeatures(
   config: AnyConfig,
   inputs: Record<string, unknown>,
-  _opts?: ResolveOptions,
+  opts?: ResolveOptions,
 ): ResolveResult<Record<string, unknown>> {
   const state: Record<string, unknown> = {};
   const provenance: Record<string, FeatureProvenance> = {};
 
+  const handler =
+    opts?.onViolation ??
+    config.onViolation ??
+    ((v: { feature: string; input: string; key: string }) => {
+      if (!isProd()) {
+        console.warn(`[unflag] feature "${v.feature}" read undeclared input ${v.input}.${v.key}`);
+      }
+    });
+
   for (const [key, def] of Object.entries(config.features)) {
-    const value = def.resolve(inputs);
+    const declared = normalizeReads(def.reads);
+    const reads: Read[] = [];
+    const proxied: Record<string, unknown> = {};
+    for (const [inputName, inputValue] of Object.entries(inputs)) {
+      proxied[inputName] =
+        inputValue !== null && typeof inputValue === 'object'
+          ? recordingProxy(inputName, inputValue as object, read => {
+              reads.push(read);
+              if (!(declared[inputName] ?? []).includes(read.key)) {
+                handler({ feature: key, input: inputName, key: read.key });
+              }
+            })
+          : inputValue;
+    }
+    const value = def.resolve(proxied);
     state[key] = value;
-    provenance[key] = {
-      value,
-      declaredReads: normalizeReads(def.reads),
-      actualReads: [],
-      overridden: false,
-    };
+    provenance[key] = { value, declaredReads: declared, actualReads: reads, overridden: false };
   }
 
   const result: ResolveResult<Record<string, unknown>> = { state, provenance };
