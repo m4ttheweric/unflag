@@ -1,21 +1,51 @@
-// Deterministic evidence capture for the unflag dev panel (redesigned UI).
-// Uses fast-browser's vendored playwright-core + cached chromium; avoids
-// keystroke simulation on large textareas (native setter + input event).
+// Local capture harness for unflag dev panel evidence screenshots.
+// This is NOT part of the unflag library or its published packages -- it is
+// a machine-local dev tool for producing docs/ui-evidence/*.png, and is not
+// run in CI. It depends on a locally installed playwright-core (e.g. from
+// fast-browser's vendored runtime) and a cached Chromium/Chrome for Testing
+// build; point it at yours via the env vars below.
+//
+// Avoids keystroke simulation on large textareas (native setter + input event).
 import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
-const { chromium } = require('/Users/matt/.fast-browser/runtime/0.1.0-alpha.11/fast-browser-mcp/playwright-core');
+import { existsSync, readdirSync } from 'node:fs';
+import { homedir } from 'node:os';
+import path from 'node:path';
 
-const OUT = '/Users/matt/Documents/GitHub/unflag/docs/ui-evidence';
+const require = createRequire(import.meta.url);
+
+const pwCorePath = process.env.UNFLAG_PW_CORE;
+if (!pwCorePath) {
+  throw new Error(
+    'UNFLAG_PW_CORE is not set. Point it at a local playwright-core install ' +
+      '(e.g. the path to fast-browser\'s vendored playwright-core), then re-run.'
+  );
+}
+const { chromium } = require(pwCorePath);
+
+const OUT = new URL('.', import.meta.url).pathname;
 const BASE = 'http://localhost:5173';
-const EXE_CANDIDATES = [
-  '/Users/matt/Library/Caches/ms-playwright/chromium-1234/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing',
-  '/Users/matt/Library/Caches/ms-playwright/chromium-1228/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing',
-  '/Users/matt/Library/Caches/ms-playwright/chromium-1234/chrome-mac-arm64/Chromium.app/Contents/MacOS/Chromium',
-  '/Users/matt/Library/Caches/ms-playwright/chromium-1228/chrome-mac-arm64/Chromium.app/Contents/MacOS/Chromium',
-];
-import { existsSync } from 'node:fs';
-const executablePath = EXE_CANDIDATES.find(p => existsSync(p));
-if (!executablePath) throw new Error('no cached chromium found');
+
+function discoverChromiumExecutable() {
+  const cacheRoot = path.join(homedir(), 'Library', 'Caches', 'ms-playwright');
+  if (!existsSync(cacheRoot)) return undefined;
+  const names = ['Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing', 'Chromium.app/Contents/MacOS/Chromium'];
+  const entries = readdirSync(cacheRoot).filter(e => e.startsWith('chromium-')).sort().reverse();
+  for (const entry of entries) {
+    for (const name of names) {
+      const candidate = path.join(cacheRoot, entry, 'chrome-mac-arm64', name);
+      if (existsSync(candidate)) return candidate;
+    }
+  }
+  return undefined;
+}
+
+const executablePath = process.env.UNFLAG_CHROMIUM || discoverChromiumExecutable();
+if (!executablePath) {
+  throw new Error(
+    'No Chromium executable found. Set UNFLAG_CHROMIUM to an explicit path, ' +
+      'or install a cached build under ~/Library/Caches/ms-playwright.'
+  );
+}
 
 const consoleErrors = [];
 const measurements = {};
@@ -26,7 +56,7 @@ const page = await ctx.newPage();
 page.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()); });
 page.on('pageerror', e => consoleErrors.push(String(e)));
 
-const shot = name => page.screenshot({ path: `${OUT}/${name}` });
+const shot = name => page.screenshot({ path: path.join(OUT, name) });
 const trigger = () => page.getByRole('button', { name: 'unflag', exact: true });
 const filter = () => page.getByLabel('filter features');
 const row = name => page.locator('button[aria-expanded]').filter({ hasText: name }).first();
