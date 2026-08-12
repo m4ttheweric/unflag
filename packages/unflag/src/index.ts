@@ -1,3 +1,4 @@
+export { applyOverrides } from './core/overrides';
 export { defineFeatures, input } from './core/define';
 export {
   SCHEMAS,
