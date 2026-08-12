@@ -1,8 +1,8 @@
 import type { z } from 'zod/v4';
-import { resolveFeatures, type AnyConfig } from './resolve';
+import { normalizeReads, resolveFeatures, type AnyConfig } from './resolve';
 import type {
   FeatureDef, FeatureSet, InputMarker, InputsShape, InputValues,
-  ResolveOptions, ViolationHandler,
+  ResolveOptions, StateOf, ViolationHandler,
 } from './types';
 
 export const input = <T,>(): InputMarker<T> => ({ __unflag: 'input' });
@@ -25,11 +25,20 @@ export function defineFeatures<
       resolveFeatures(config as unknown as AnyConfig, inputs, opts) as ReturnType<
         FeatureSet<I, F>['resolve']
       >,
-    graph: () => {
-      throw new Error('[unflag] graph() not implemented yet');
-    },
-    builder: () => {
-      throw new Error('[unflag] builder() not implemented yet');
+    graph: () =>
+      Object.fromEntries(
+        Object.entries(config.features).map(([k, def]) => [
+          k,
+          normalizeReads((def as { reads: Record<string, readonly string[] | undefined> }).reads),
+        ]),
+      ) as ReturnType<FeatureSet<I, F>['graph']>,
+
+    builder: (baseline: InputValues<I>) => {
+      let cached: StateOf<F> | undefined;
+      return (overrides?: Partial<StateOf<F>>) => {
+        cached ??= (resolveFeatures(config as unknown as AnyConfig, baseline) as { state: StateOf<F> }).state;
+        return { ...cached, ...overrides };
+      };
     },
   };
   return set;
