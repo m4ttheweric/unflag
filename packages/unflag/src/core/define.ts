@@ -10,7 +10,11 @@ export const input = <T,>(): InputMarker<T> => ({ __unflag: 'input' });
 export function defineFeatures<
   I extends InputsShape,
   const F extends Record<string, FeatureDef<I, z.ZodType>>,
->(config: { inputs: I; features: F; onViolation?: ViolationHandler }): FeatureSet<I, F> {
+>(config: {
+  inputs: I;
+  features: F & { [K in keyof F]: FeatureDef<I, F[K]['output']> };
+  onViolation?: ViolationHandler;
+}): FeatureSet<I, F> {
   const schemas = Object.fromEntries(
     Object.entries(config.features).map(([k, def]) => [k, (def as { output: z.ZodType }).output]),
   ) as { [K in keyof F]: z.ZodType };

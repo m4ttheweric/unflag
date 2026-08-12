@@ -45,6 +45,7 @@ describe('defineFeatures/resolve', () => {
 
   it('SCHEMAS is not enumerable on the result', () => {
     const result = make().resolve(inputs);
+    expect(Object.getOwnPropertyDescriptor(result, SCHEMAS)?.enumerable).toBe(false);
     expect(Object.keys(result)).toEqual(['state', 'provenance']);
   });
 });
