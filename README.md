@@ -110,8 +110,11 @@ function Desk() {
 
 function NormalApp() {
   const [flags, setFlags] = useState<DemoFlags>(defaultFlags);
+  // Memoized so `inputs` is referentially stable across renders that don't
+  // change `flags` -- see Design notes below for why that matters.
+  const inputs = useMemo(() => ({ flags, plan: defaultPlan }), [flags]);
   return (
-    <UnflagProvider inputs={{ flags, plan: defaultPlan }} enableOverrides storageKey="unflag.support-desk">
+    <UnflagProvider inputs={inputs} enableOverrides storageKey="unflag.support-desk">
       <Desk />
       <UnflagDevPanel useUnflag={useUnflag} />
     </UnflagProvider>
