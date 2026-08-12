@@ -25,6 +25,11 @@ const featureSet = defineFeatures({
       output: z.object({ maxOpen: z.number() }),
       resolve: () => ({ maxOpen: 5 }),
     },
+    releaseDate: {
+      reads: {},
+      output: z.date(),
+      resolve: () => new Date(0),
+    },
   },
 });
 
@@ -91,5 +96,35 @@ describe('UnflagDevPanel', () => {
     expect(
       screen.getByText(`chatExperience = "disabled" (flags['chat'] = false)`),
     ).toBeDefined();
+  });
+
+  it('resyncs the JSON editor to external value changes and does not re-apply stale text on blur after clear-all', async () => {
+    renderPanel();
+    await userEvent.click(screen.getByRole('button', { name: 'unflag' }));
+    const editor = screen.getByRole('textbox', { name: 'override limits' }) as HTMLTextAreaElement;
+
+    await userEvent.clear(editor);
+    await userEvent.paste('{"maxOpen": 9}');
+    await userEvent.tab();
+    expect(screen.getByText('overridden')).toBeDefined();
+
+    await userEvent.click(screen.getByRole('button', { name: 'clear all overrides' }));
+    expect(screen.queryByText('overridden')).toBeNull();
+    expect(editor.value).toBe(JSON.stringify({ maxOpen: 5 }, null, 2));
+
+    await userEvent.click(editor);
+    await userEvent.tab();
+    expect(screen.queryByText('overridden')).toBeNull();
+    expect(window.localStorage.getItem('unflag.panel')).toBeNull();
+  });
+
+  it('falls back to a JSON editor for schemas that z.toJSONSchema cannot represent', async () => {
+    renderPanel();
+    await userEvent.click(screen.getByRole('button', { name: 'unflag' }));
+    expect(screen.getByText('releaseDate')).toBeDefined();
+    expect(screen.getByText('chatExperience')).toBeDefined();
+    expect(screen.getByText('betaBanner')).toBeDefined();
+    expect(screen.getByText('limits')).toBeDefined();
+    expect(screen.getByRole('textbox', { name: 'override releaseDate' })).toBeDefined();
   });
 });
