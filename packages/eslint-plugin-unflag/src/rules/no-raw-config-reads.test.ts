@@ -1,6 +1,6 @@
-import { RuleTester } from 'eslint';
-import { describe, it } from 'vitest';
-import rule from './no-raw-config-reads';
+import { Linter, RuleTester } from 'eslint';
+import { describe, expect, it } from 'vitest';
+import rule, { relativeTo } from './no-raw-config-reads';
 
 const tester = new RuleTester({
   languageOptions: { ecmaVersion: 2022, sourceType: 'module' },
@@ -62,5 +62,46 @@ describe('no-raw-config-reads', () => {
         },
       ],
     });
+  });
+});
+
+describe('relativeTo', () => {
+  it('strips a cwd without a trailing slash', () => {
+    expect(relativeTo('/repo', '/repo/src/foo.ts')).toBe('src/foo.ts');
+  });
+
+  it('strips a cwd with a trailing slash without double-counting the separator', () => {
+    expect(relativeTo('/repo/', '/repo/src/foo.ts')).toBe('src/foo.ts');
+  });
+
+  it('handles a root cwd of "/" without dropping the first path character', () => {
+    expect(relativeTo('/', '/repo/src/foo.ts')).toBe('repo/src/foo.ts');
+  });
+
+  it('does not treat a sibling directory sharing a prefix as inside cwd', () => {
+    expect(relativeTo('/repo', '/repository/src/foo.ts')).toBe('/repository/src/foo.ts');
+  });
+
+  it('falls back to the absolute filename when it does not share the cwd prefix at all', () => {
+    expect(relativeTo('/repo', '/other/src/foo.ts')).toBe('/other/src/foo.ts');
+  });
+});
+
+describe('no-raw-config-reads schema validation', () => {
+  it('rejects a malformed restricted entry at the schema level instead of crashing at runtime', () => {
+    const linter = new Linter();
+    const config: Linter.Config[] = [
+      {
+        languageOptions: { ecmaVersion: 2022, sourceType: 'module' },
+        plugins: { unflag: { rules: { 'no-raw-config-reads': rule } } },
+        rules: {
+          'unflag/no-raw-config-reads': ['error', { restricted: ['not-an-object'] }],
+        },
+      },
+    ];
+
+    expect(() => linter.verify('const x = 1;', config, { filename: 'src/x.js' })).toThrow(
+      /should be object|should match exactly one schema/,
+    );
   });
 });

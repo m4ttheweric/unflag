@@ -8,6 +8,26 @@ type Options = {
 
 const DEFAULT_ALLOW_IN = ['**/*.features.ts', '**/features/**'];
 
+/**
+ * Returns `filename` relative to `cwd`, normalizing separators and a
+ * trailing slash on `cwd` first so a root-ish cwd (e.g. '/repo/' or '/')
+ * doesn't get double-counted when slicing off the prefix (that produced
+ * off-by-one results like 'oo.ts' instead of 'foo.ts'). Falls back to the
+ * (normalized) absolute filename when it doesn't share the cwd prefix,
+ * including when the shared prefix is only a sibling-directory name
+ * collision (e.g. cwd '/repo' vs file under '/repository/...').
+ */
+export function relativeTo(cwd: string, filename: string): string {
+  const file = filename.replace(/\\/g, '/');
+  let base = cwd.replace(/\\/g, '/');
+  if (base.length > 1 && base.endsWith('/')) {
+    base = base.slice(0, -1);
+  }
+  if (file === base) return '';
+  const prefix = base === '/' ? base : `${base}/`;
+  return file.startsWith(prefix) ? file.slice(prefix.length) : file;
+}
+
 function memberChain(node: Rule.Node): string | null {
   // Builds "a.b.c" for non-computed identifier chains; null for anything else.
   if (node.type === 'Identifier') return node.name;
@@ -29,7 +49,25 @@ const rule: Rule.RuleModule = {
       {
         type: 'object',
         properties: {
-          restricted: { type: 'array' },
+          restricted: {
+            type: 'array',
+            items: {
+              oneOf: [
+                {
+                  type: 'object',
+                  properties: { importSource: { type: 'string' } },
+                  required: ['importSource'],
+                  additionalProperties: false,
+                },
+                {
+                  type: 'object',
+                  properties: { objectPattern: { type: 'string' } },
+                  required: ['objectPattern'],
+                  additionalProperties: false,
+                },
+              ],
+            },
+          },
           allowIn: { type: 'array', items: { type: 'string' } },
         },
         required: ['restricted'],
@@ -49,17 +87,24 @@ const rule: Rule.RuleModule = {
     const filename = context.filename.replace(/\\/g, '/');
     const isAllowed = picomatch(allowIn, { dot: true });
     // Match against the path relative to cwd AND the absolute path, so globs
-    // like '**/features/**' behave regardless of how eslint was invoked.
-    const rel = filename.startsWith(context.cwd.replace(/\\/g, '/'))
-      ? filename.slice(context.cwd.length + 1)
-      : filename;
+    // like '**/features/**' (or 'src/features/**' without a leading '**/')
+    // behave regardless of how eslint was invoked.
+    const rel = relativeTo(context.cwd, filename);
     if (isAllowed(rel) || isAllowed(filename)) return {};
 
+    // The schema restricts each `restricted` entry to one of the two known
+    // shapes, but guard defensively at runtime too in case schema
+    // validation is ever bypassed (e.g. a caller constructs the rule
+    // options programmatically rather than through eslint's config loader).
+    const isRestrictedEntry = (r: unknown): r is Record<string, unknown> =>
+      typeof r === 'object' && r !== null;
     const importSources = new Set(
-      opts.restricted.flatMap(r => ('importSource' in r ? [r.importSource] : [])),
+      opts.restricted.flatMap(r =>
+        isRestrictedEntry(r) && 'importSource' in r ? [r.importSource as string] : [],
+      ),
     );
     const objectPatterns = opts.restricted.flatMap(r =>
-      'objectPattern' in r ? [r.objectPattern] : [],
+      isRestrictedEntry(r) && 'objectPattern' in r ? [r.objectPattern as string] : [],
     );
 
     return {
