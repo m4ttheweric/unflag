@@ -4,6 +4,7 @@ export { explain } from './core/explain';
 export { safeStringify } from './core/safeStringify';
 export {
   SCHEMAS,
-  type FeatureProvenance, type FeatureSet, type InferState, type InputMarker,
+  type FeatureDef, type FeatureProvenance, type FeatureSet, type InferState,
+  type InputMarker, type InputsShape, type InputValues,
   type Read, type ResolveResult, type StateOf, type Violation, type ViolationHandler,
 } from './core/types';
