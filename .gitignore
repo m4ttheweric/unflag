@@ -3,3 +3,4 @@ dist/
 .local-dev/
 .superpowers/
 *.tsbuildinfo
+.DS_Store
