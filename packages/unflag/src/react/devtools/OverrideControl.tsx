@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { z } from 'zod/v4';
+import { safeStringify } from '../../core/safeStringify';
 import { styles } from './styles';
 
 type JsonSchemaLike = { type?: string; enum?: unknown[] };
@@ -62,7 +63,7 @@ export function OverrideControl({
 function JsonEditor({
   name, value, onApply,
 }: { name: string; value: unknown; onApply: (value: unknown) => void }) {
-  const [text, setText] = useState(() => JSON.stringify(value, null, 2));
+  const [text, setText] = useState(() => safeStringify(value, 2));
   const [error, setError] = useState<string | null>(null);
   // Tracks the serialization of `value` as of the last resync, so the effect below can
   // tell a genuine content change (e.g. another control cleared this override) apart from
@@ -73,7 +74,7 @@ function JsonEditor({
   const lastSynced = useRef(text);
 
   useEffect(() => {
-    const incoming = JSON.stringify(value, null, 2);
+    const incoming = safeStringify(value, 2);
     if (incoming !== lastSynced.current) {
       lastSynced.current = incoming;
       setText(incoming);

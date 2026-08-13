@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { safeStringify } from '../../core/safeStringify';
 import type { UnflagContextValue } from '../createUnflagReact';
 import { OverrideControl } from './OverrideControl';
 import { positions, styles, type PanelPosition } from './styles';
@@ -9,11 +10,12 @@ const PREVIEW_MAX = 80;
 /**
  * One-line value preview for a collapsed row. Long payloads (a 500-item array from a
  * heavy object feature, say) would otherwise blow the row height out, so the string is
- * hard-capped and marked with a trailing ellipsis. `JSON.stringify` returns undefined
- * for undefined/function values, hence the fallback.
+ * hard-capped and marked with a trailing ellipsis. `safeStringify` returns `String(value)`
+ * for undefined/function/BigInt values (which `JSON.stringify` can't handle, and throws on
+ * for BigInt) instead of throwing and blanking the whole panel.
  */
 function previewValue(value: unknown): string {
-  const text = JSON.stringify(value) ?? String(value);
+  const text = safeStringify(value);
   return text.length > PREVIEW_MAX ? `${text.slice(0, PREVIEW_MAX)}…` : text;
 }
 
@@ -100,7 +102,7 @@ export function UnflagDevPanel({
                 {isExpanded ? (
                   <div style={styles.detail}>
                     {prov.overridden ? (
-                      <div style={styles.small}>would be {JSON.stringify(prov.underlying)}</div>
+                      <div style={styles.small}>would be {safeStringify(prov.underlying)}</div>
                     ) : null}
                     <OverrideControl
                       name={key}

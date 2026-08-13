@@ -30,6 +30,11 @@ const featureSet = defineFeatures({
       output: z.date(),
       resolve: () => new Date(0),
     },
+    big: {
+      reads: {},
+      output: z.bigint(),
+      resolve: () => 10n,
+    },
   },
 });
 
@@ -194,6 +199,15 @@ describe('UnflagDevPanel', () => {
     await expandRow('releaseDate');
     expect(screen.getByRole('textbox', { name: 'override releaseDate' })).toBeDefined();
   });
+
+  it('renders every row, including a BigInt-valued feature, without JSON.stringify throwing', async () => {
+    renderPanel();
+    await userEvent.click(screen.getByRole('button', { name: 'unflag' }));
+    expect(screen.getByText('big')).toBeDefined();
+    expect(screen.getByText('10')).toBeDefined();
+    await expandRow('big');
+    expect(screen.getByRole('textbox', { name: 'override big' })).toBeDefined();
+  });
 });
 
 // Dynamic feature keys defeat the literal-object inference path of `defineFeatures`,
@@ -259,21 +273,21 @@ describe('UnflagDevPanel with large feature sets', () => {
     await userEvent.type(filterInput(), 'nosuchfeature');
 
     expect(screen.getByText('no features match')).toBeDefined();
-    expect(screen.getByText('4 features · 0 overridden · 0 shown')).toBeDefined();
+    expect(screen.getByText('5 features · 0 overridden · 0 shown')).toBeDefined();
     expect(screen.queryByText('chatExperience')).toBeNull();
   });
 
   it('reports total, overridden and shown counts', async () => {
     renderPanel();
     await openPanel();
-    expect(screen.getByText('4 features · 0 overridden · 4 shown')).toBeDefined();
+    expect(screen.getByText('5 features · 0 overridden · 5 shown')).toBeDefined();
 
     await expandRow('chatExperience');
     await userEvent.click(screen.getByRole('button', { name: 'emma-chat' }));
-    expect(screen.getByText('4 features · 1 overridden · 4 shown')).toBeDefined();
+    expect(screen.getByText('5 features · 1 overridden · 5 shown')).toBeDefined();
 
     await userEvent.type(filterInput(), 'beta');
-    expect(screen.getByText('4 features · 1 overridden · 1 shown')).toBeDefined();
+    expect(screen.getByText('5 features · 1 overridden · 1 shown')).toBeDefined();
   });
 
   it('mounts no override controls while rows are collapsed', async () => {
