@@ -1,4 +1,4 @@
-import { defineFeatures, input } from 'unflag';
+import { defineFeatures, input } from '@m4ttheweric/unflag';
 import { z } from 'zod/v4';
 import type { DemoFlags, PlanConfig } from '../rawConfig';
 

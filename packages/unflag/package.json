@@ -1,10 +1,15 @@
 {
-  "name": "unflag",
-  "version": "0.0.0",
+  "name": "@m4ttheweric/unflag",
+  "version": "0.1.0",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
-  "files": ["dist"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/m4ttheweric/unflag.git",
+    "directory": "packages/unflag"
+  },
+  "files": ["dist", "README.md", "LICENSE", "unflag_logo.png"],
   "exports": {
     ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/index.cjs" },
     "./react": { "types": "./dist/react/index.d.ts", "import": "./dist/react/index.js", "require": "./dist/react/index.cjs" },
@@ -13,7 +18,8 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "build": "tsup"
+    "build": "tsup",
+    "prepublishOnly": "pnpm typecheck && pnpm test && pnpm build"
   },
   "peerDependencies": {
     "zod": ">=3.25",
@@ -23,6 +29,9 @@
   "peerDependenciesMeta": {
     "react": { "optional": true },
     "react-dom": { "optional": true }
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "devDependencies": {
     "@testing-library/react": "^16.1.0",

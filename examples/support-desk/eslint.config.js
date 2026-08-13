@@ -1,5 +1,5 @@
 import tseslint from 'typescript-eslint';
-import unflag from 'eslint-plugin-unflag';
+import unflag from '@m4ttheweric/eslint-plugin-unflag';
 
 export default tseslint.config({
   files: ['src/**/*.{ts,tsx}'],

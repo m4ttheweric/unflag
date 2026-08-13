@@ -5,7 +5,7 @@
 // features record programmatically and casts at the two spots where TypeScript
 // needs the shape pinned down. Casts are intentionally local to this file --
 // the point is runtime stress, not static inference.
-import { defineFeatures, input } from 'unflag';
+import { defineFeatures, input } from '@m4ttheweric/unflag';
 import { z } from 'zod/v4';
 
 const ENUM_OPTIONS = ['alpha', 'bravo', 'charlie', 'delta', 'echo'] as const;

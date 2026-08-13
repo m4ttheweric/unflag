@@ -4,6 +4,10 @@
 
 Published as `@m4ttheweric/unflag` and `@m4ttheweric/eslint-plugin-unflag`.
 
+```
+pnpm add @m4ttheweric/unflag zod
+```
+
 Config in, typed product state out: you feed `unflag` your raw flags and
 config documents, and it hands back a typed, validated bundle of *features*
 that your app code consumes. Think of it as a wall between "the messy things

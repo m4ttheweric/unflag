@@ -1,17 +1,26 @@
 {
-  "name": "eslint-plugin-unflag",
-  "version": "0.0.0",
+  "name": "@m4ttheweric/eslint-plugin-unflag",
+  "version": "0.1.0",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
-  "files": ["dist"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/m4ttheweric/unflag.git",
+    "directory": "packages/eslint-plugin-unflag"
+  },
+  "files": ["dist", "README.md", "LICENSE"],
   "exports": {
     ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/index.cjs" }
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "build": "tsup src/index.ts --format esm,cjs --dts --clean"
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
+    "prepublishOnly": "pnpm typecheck && pnpm test && pnpm build"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": { "picomatch": "^4.0.2" },
   "peerDependencies": { "eslint": ">=9" },

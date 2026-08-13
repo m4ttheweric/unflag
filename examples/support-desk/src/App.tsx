@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { createUnflagReact } from 'unflag/react';
-import { UnflagDevPanel } from 'unflag/react/devtools';
+import { createUnflagReact } from '@m4ttheweric/unflag/react';
+import { UnflagDevPanel } from '@m4ttheweric/unflag/react/devtools';
 import { defaultFlags, defaultPlan, type DemoFlags } from './rawConfig';
 import { UnflagProvider, useFeatures, useUnflag } from './features/unflag.react';
 import { buildStressDial, buildStressFeatureSet } from './features/stress.features';
