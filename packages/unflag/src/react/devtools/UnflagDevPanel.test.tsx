@@ -208,6 +208,26 @@ describe('UnflagDevPanel', () => {
     await expandRow('big');
     expect(screen.getByRole('textbox', { name: 'override big' })).toBeDefined();
   });
+
+  it('does not crash blurring the JSON editor for a BigInt-valued feature (z.bigint() is unrepresentable as JSON Schema, so JsonEditor is the control that renders)', async () => {
+    renderPanel();
+    await userEvent.click(screen.getByRole('button', { name: 'unflag' }));
+    await expandRow('big');
+    const editor = screen.getByRole('textbox', { name: 'override big' }) as HTMLTextAreaElement;
+
+    await userEvent.clear(editor);
+    await userEvent.type(editor, '10');
+    await expect(userEvent.tab()).resolves.not.toThrow();
+
+    // Panel survived the blur and is still rendering the row -- the no-op guard's
+    // comparison must not throw for a BigInt-valued feature.
+    expect(screen.getByText('big')).toBeDefined();
+    expect(screen.queryByText(/invalid/i)).toBeNull();
+    // safeStringify(10) and safeStringify(10n) both produce the text "10", so the no-op
+    // guard treats parsed `10` (number) as textually equal to the underlying `10n` and
+    // does NOT call onApply here -- no override gets created for same-looking text.
+    expect(screen.queryByText('overridden')).toBeNull();
+  });
 });
 
 // Dynamic feature keys defeat the literal-object inference path of `defineFeatures`,

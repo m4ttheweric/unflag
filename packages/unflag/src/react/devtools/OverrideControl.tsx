@@ -95,7 +95,7 @@ function JsonEditor({
             // No-op guard: if the text still parses to the current value (e.g. it was
             // just resynced above and the user made no edit before blurring), don't
             // re-apply -- that would re-create an override that was just cleared.
-            if (JSON.stringify(parsed) === JSON.stringify(value)) {
+            if (safeStringify(parsed) === safeStringify(value)) {
               setError(null);
               return;
             }
