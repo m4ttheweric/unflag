@@ -47,4 +47,20 @@ describe('explain', () => {
       '[unflag] explain: unknown feature "nope"',
     );
   });
+
+  it('does not throw for a feature resolving to a BigInt, which JSON.stringify rejects', () => {
+    const withBigint = defineFeatures({
+      inputs: { flags: input<{ 'emma-adjuster-chat': boolean }>() },
+      features: {
+        big: {
+          reads: {},
+          output: z.bigint(),
+          resolve: () => 10n,
+        },
+      },
+    });
+    const result = withBigint.resolve({ flags: { 'emma-adjuster-chat': true } });
+    expect(() => explain(result, 'big')).not.toThrow();
+    expect(explain(result, 'big')).toContain('10');
+  });
 });
