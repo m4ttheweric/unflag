@@ -91,11 +91,16 @@ function StressApp({ count }: { count: number }) {
   );
 }
 
+// Upper bound on `?stress=N`: keeps a malformed or huge query param (`500abc`,
+// `100000000`) from building an absurd feature set. Raised past CodeRabbit's
+// suggested 500 since we intend multi-thousand-feature stress runs.
+const MAX_STRESS_FEATURES = 2000;
+
 const stressCount = (() => {
   if (typeof window === 'undefined') return 0;
   const raw = new URLSearchParams(window.location.search).get('stress');
-  const n = raw ? Number.parseInt(raw, 10) : 0;
-  return Number.isFinite(n) && n > 0 ? n : 0;
+  const n = raw ? Number(raw) : 0;
+  return Number.isSafeInteger(n) && n > 0 && n <= MAX_STRESS_FEATURES ? n : 0;
 })();
 
 export function App() {
