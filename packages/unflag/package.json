@@ -1,6 +1,6 @@
 {
   "name": "@m4ttheweric/unflag",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
@@ -9,7 +9,7 @@
     "url": "https://github.com/m4ttheweric/unflag.git",
     "directory": "packages/unflag"
   },
-  "files": ["dist", "README.md", "LICENSE", "unflag_logo.png"],
+  "files": ["dist", "README.md", "LICENSE", "unflag_logo_small.png"],
   "exports": {
     ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/index.cjs" },
     "./react": { "types": "./dist/react/index.d.ts", "import": "./dist/react/index.js", "require": "./dist/react/index.cjs" },

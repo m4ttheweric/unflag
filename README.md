@@ -1,6 +1,6 @@
 # unflag
 
-![unflag logo](./unflag_logo.png)
+<p align="center"><img src="./unflag_logo_small.png" width="180" alt="unflag logo" /></p>
 
 Published as `@m4ttheweric/unflag` and `@m4ttheweric/eslint-plugin-unflag`.
 
