@@ -8,7 +8,7 @@ Screenshot suite for the unflag dev panel: normal-mode states, stress-mode state
 |---|---|---|
 | Trigger click to panel interactive | ~1908 ms | **29 ms** |
 | Textareas mounted with all rows collapsed | 10 | **0** |
-| Heavy JSON edit round (native setter + validate) | froze the page main thread on one keystroke | 166 ms |
+| Heavy JSON edit round (native setter + validate) | froze the page main thread on one keystroke | 166 ms (includes a fixed 150 ms settle wait; ~16 ms of work) |
 | Filter typing (8 chars) | n/a (no filter existed) | ~47 ms |
 | Panel scroll | ~30fps | compact rows, no jank observed |
 | Console errors | none | none (one benign favicon 404) |
