@@ -1,10 +1,26 @@
 import type { z } from 'zod/v4';
 
 export type InputMarker<T> = { readonly __unflag: 'input'; readonly __t?: T };
-export type InputsShape = Record<string, InputMarker<unknown>>;
+export type DeferredInputMarker<T> = { readonly __unflag: 'deferred'; readonly __t?: T };
+export type FromSetInputMarker<T> = { readonly __unflag: 'fromSet'; readonly __set: object; readonly __t?: T };
+export type AnyInputMarker<T> = InputMarker<T> | DeferredInputMarker<T> | FromSetInputMarker<T>;
+export type InputsShape = Record<string, AnyInputMarker<unknown>>;
 
 export type InputValues<I extends InputsShape> = {
-  [K in keyof I]: I[K] extends InputMarker<infer T> ? T : never;
+  [K in keyof I]: I[K] extends AnyInputMarker<infer T> ? T : never;
+};
+
+export type DeferredKeys<I extends InputsShape> = {
+  [K in keyof I]: I[K] extends { readonly __unflag: 'deferred' } ? K : never;
+}[keyof I];
+export type FromSetKeys<I extends InputsShape> = {
+  [K in keyof I]: I[K] extends { readonly __unflag: 'fromSet' } ? K : never;
+}[keyof I];
+export type PlainKeys<I extends InputsShape> = Exclude<keyof I, DeferredKeys<I>>;
+
+/** resolve()'s input type: plain (and fromSet) keys required, deferred keys optional. */
+export type ResolveInputs<I extends InputsShape> = { [K in PlainKeys<I>]: InputValues<I>[K] } & {
+  [K in DeferredKeys<I>]?: InputValues<I>[K];
 };
 
 export type ReadsFor<I extends InputsShape> = {
@@ -43,6 +59,7 @@ export type StateOf<F> = {
 export type ResolveOptions = { onViolation?: ViolationHandler };
 
 export type FeatureSet<I extends InputsShape, F> = {
+  inputs: I;
   resolve(inputs: InputValues<I>, opts?: ResolveOptions): ResolveResult<StateOf<F>>;
   graph(): Record<Extract<keyof F, string>, Record<string, readonly string[]>>;
   builder(baseline: InputValues<I>): (overrides?: Partial<StateOf<F>>) => StateOf<F>;

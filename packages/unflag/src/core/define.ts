@@ -1,11 +1,18 @@
 import type { z } from 'zod/v4';
 import { normalizeReads, resolveFeatures, type AnyConfig } from './resolve';
 import type {
-  FeatureDef, FeatureSet, InputMarker, InputsShape, InputValues,
+  DeferredInputMarker, FeatureDef, FeatureSet, InputMarker, InputsShape, InputValues,
   ResolveOptions, StateOf, ViolationHandler,
 } from './types';
 
 export const input = <T,>(): InputMarker<T> => ({ __unflag: 'input' });
+
+export type DeferredInputTypeError = {
+  readonly __unflagError: "deferredInput's type must not admit undefined; wrap loading or emptiness in the value (e.g. { isLoading, values } or null). See the unflag docs on input modeling.";
+};
+
+export const deferredInput = <T,>(): [undefined] extends [T] ? DeferredInputTypeError
+  : DeferredInputMarker<T> => ({ __unflag: 'deferred' }) as never;
 
 export function defineFeatures<
   I extends InputsShape,
@@ -20,6 +27,7 @@ export function defineFeatures<
   ) as { [K in keyof F]: z.ZodType };
 
   const set: FeatureSet<I, F> = {
+    inputs: config.inputs,
     schemas,
     resolve: (inputs: InputValues<I>, opts?: ResolveOptions) =>
       resolveFeatures(config as unknown as AnyConfig, inputs, opts) as ReturnType<
