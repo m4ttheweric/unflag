@@ -275,6 +275,43 @@ describe('UnflagDevPanel', () => {
     ).toBeTruthy();
   });
 
+  it('hides a section header when the filter leaves zero visible rows in that section', async () => {
+    const appSet = defineFeatures({
+      inputs: { flags: input<{ chat: boolean }>() },
+      features: {
+        chatEnabled: { reads: { flags: ['chat'] }, output: z.boolean(), resolve: ({ flags }) => flags.chat },
+      },
+    });
+    const caseSet = defineFeatures({
+      inputs: { app: fromFeatureSet(appSet), gates: input<{ shell: boolean }>() },
+      features: {
+        chatOffered: {
+          reads: { app: ['chatEnabled'], gates: ['shell'] },
+          output: z.boolean(),
+          resolve: ({ app, gates }) => app.chatEnabled && !gates.shell,
+        },
+      },
+    });
+    const App = createUnflagReact(appSet);
+    const Case = createUnflagReact(caseSet);
+
+    render(
+      <App.UnflagProvider inputs={{ flags: { chat: true } }}>
+        <Case.UnflagProvider inputs={{ gates: { shell: false } }}>
+          <UnflagDevPanel useUnflag={Case.useUnflag} />
+        </Case.UnflagProvider>
+      </App.UnflagProvider>,
+    );
+    await openPanel();
+
+    // Filter matches only the child set's feature name, so the parent 'app' section
+    // has zero visible rows and its header should not render at all.
+    await userEvent.type(filterInput(), 'chatOffered');
+
+    expect(screen.getByText('chatOffered')).toBeDefined();
+    expect(screen.queryByText('app')).toBeNull();
+  });
+
   it('badges unready features', async () => {
     const unreadySet = defineFeatures({
       inputs: {

@@ -56,7 +56,7 @@ describe('useFeatureStatus / statuses', () => {
 
   it('an override beats an unready fallback and reads as ready-valued state (spec 2.2 ordering)', () => {
     render(
-      <UnflagProvider inputs={{ flags: { chat: true } }} enableOverrides>
+      <UnflagProvider inputs={{ flags: { chat: true } }} enableOverrides storageKey="unflag.featureStatus.overrideBeatsUnready">
         <Capture />
       </UnflagProvider>,
     );

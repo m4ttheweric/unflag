@@ -72,6 +72,8 @@ describe('resolvePartial', () => {
     const { state } = set.resolvePartial({ flags: undefined });
     expect(state).toEqual({});
     expect(violations).toEqual([]);
+    // @ts-expect-error probe reads flags, and an undefined-admitting value does not satisfy it at the type level
+    state.probe;
   });
 
   it('does NOT serve unready fallbacks (absence, not fallback)', () => {

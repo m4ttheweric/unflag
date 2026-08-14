@@ -9,6 +9,6 @@ export {
   type FeatureDef, type FeatureProvenance, type FeatureSet, type FromSetInputMarker,
   type FromSetKeys, type InferState,
   type InputMarker, type InputsShape, type InputValues,
-  type PlainKeys, type Read, type ResolveInputs, type ResolveResult,
+  type PlainKeys, type ProvidedKeys, type Read, type ResolveInputs, type ResolveResult,
   type SatisfiedState, type StateOf, type UnreadyDecl, type Violation, type ViolationHandler,
 } from './core/types';

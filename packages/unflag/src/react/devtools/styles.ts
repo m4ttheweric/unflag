@@ -66,8 +66,10 @@ export const styles = {
   },
   // Distinct (amber) from `badge`'s accent color so an unready fallback reads as a
   // waiting state, not as an override -- the two can appear side by side on one row.
+  // #b45309 (not the lighter #d97706) is the darkest step that still reads as amber
+  // while clearing WCAG AA contrast against white at this font size: 5.02:1 vs 3.19:1.
   badgeUnready: {
-    background: '#d97706', color: '#fff', borderRadius: 4, padding: '1px 6px',
+    background: '#b45309', color: '#fff', borderRadius: 4, padding: '1px 6px',
     fontSize: 10, textTransform: 'uppercase' as const,
   },
   small: { fontSize: 11, opacity: 0.75 },

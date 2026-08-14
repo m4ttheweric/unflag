@@ -70,10 +70,15 @@ export type StateOf<F> = {
   -readonly [K in keyof F]: F[K] extends { output: infer O extends z.ZodType } ? z.output<O> : never;
 };
 
+/** Keys of P actually provided: a property whose type admits undefined does not count. */
+export type ProvidedKeys<P> = {
+  [K in keyof P]-?: undefined extends P[K] ? never : K;
+}[keyof P];
+
 /** Features whose declared reads are fully covered by the provided input keys P. */
 export type SatisfiedState<F, P> = {
   -readonly [K in keyof F as F[K] extends { reads: infer R }
-    ? [keyof R] extends [keyof P] ? K : never
+    ? [keyof R] extends [ProvidedKeys<P>] ? K : never
     : never]: F[K] extends { output: infer O extends z.ZodType } ? z.output<O> : never;
 };
 

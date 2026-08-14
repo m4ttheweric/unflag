@@ -146,7 +146,7 @@ import { defineFeatures, deferredInput, input } from '@m4ttheweric/unflag';
 import { z } from 'zod/v4';
 
 // settled-empty is null, never undefined -- see the modeling rule below
-type Strategy = { mode: 'full' | 'lite' } | null;
+type Strategy = { mode: 'full' | 'lite'; banner: string | null } | null;
 
 export const features = defineFeatures({
   inputs: {
@@ -154,6 +154,13 @@ export const features = defineFeatures({
     strategy: deferredInput<Strategy>(), // may be absent when resolve() runs
   },
   features: {
+    // reads only the always-ready `flags` input, so this is itself always ready --
+    // a contributor can gate its query on it without waiting on `strategy`.
+    claimChatOffered: {
+      reads: { flags: ['claimChatEnabled'] },
+      output: z.boolean(),
+      resolve: ({ flags }) => flags.claimChatEnabled,
+    },
     claimChat: {
       reads: { flags: ['claimChatEnabled'], strategy: ['mode'] },
       output: z.enum(['full', 'lite', 'resolving', 'unavailable']),
@@ -177,7 +184,7 @@ time if it's missing. It also throws if a feature that reads no deferred input d
     reads: { strategy: ['banner'] },
     output: z.string().nullable(),
     unready: null,
-    resolve: ({ strategy }) => strategy.banner,
+    resolve: ({ strategy }) => strategy?.banner ?? null,
   },
   ```
 
@@ -197,7 +204,7 @@ features.resolve({ flags }); // strategy omitted
 Features that don't read `strategy` resolve normally. `claimChat` serves its `unready`
 value, and `explain()` says why:
 
-```
+```text
 claimChat = "resolving" (unready: awaiting strategy)
 ```
 
@@ -227,14 +234,14 @@ the gated query:
 ```tsx
 function StrategyContributor() {
   const { claimChatOffered } = useFeatures(); // always-ready inputs only
-  const { data } = useQuery(StrategyConfigDoc, { skip: !claimChatOffered.enabled });
+  const { data } = useQuery(StrategyConfigDoc, { skip: !claimChatOffered });
 
   useProvideInput(
     'strategy',
     // undefined while in flight (ignored); a settled-but-empty result is null, per the
     // modeling rule above. Gate the CONTRIBUTION, not just the query -- if the flag
     // later flips false, an ungated contribution would keep serving a stale cached value.
-    !claimChatOffered.enabled || data === undefined ? undefined : (data.config ?? null),
+    !claimChatOffered || data === undefined ? undefined : (data.config ?? null),
   );
   return null;
 }
@@ -297,7 +304,7 @@ that input.
 
 ```ts
 // only features whose reads are fully covered by { flags } come back
-const { chatEnabled } = features.resolvePartial({ flags }).state;
+const { attachments } = features.resolvePartial({ flags }).state;
 ```
 
 > [!NOTE]
@@ -362,11 +369,15 @@ same way.
 > were `false`, like `chatOffered` above, which folds `'resolving'` into "not offered",
 > is a real modeling choice. Make it on purpose, in the resolver, not by accident.
 
+<!-- -->
+
 > [!NOTE]
 > A missing ancestor provider throws a clear error naming both sets. If the provider IS
 > mounted and you still see it, check for two copies of `unflag` in your dependency
 > tree. A duplicated package copy registers the parent in one copy's registry while
 > the child looks in the other's.
+
+<!-- -->
 
 > [!TIP]
 > If both a nested provider and its parent set `enableOverrides`, give them distinct

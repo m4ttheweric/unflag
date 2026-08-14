@@ -70,7 +70,7 @@ function SetSection({
 
   return (
     <>
-      {label !== null ? <div style={styles.sectionHeader}>{label}</div> : null}
+      {label !== null && visible.length > 0 ? <div style={styles.sectionHeader}>{label}</div> : null}
       {visible.map(key => {
         const prov = provenance[key]!;
         const rowKey = `${sectionKey}:${key}`;
