@@ -1,6 +1,7 @@
 export { applyOverrides } from './core/overrides';
 export { defineFeatures, deferredInput, input, type DeferredInputTypeError } from './core/define';
 export { explain } from './core/explain';
+export { keyMirror } from './core/keyMirror';
 export { safeStringify } from './core/safeStringify';
 export {
   SCHEMAS,
