@@ -1,8 +1,8 @@
 import type { z } from 'zod/v4';
 import { normalizeReads, resolveFeatures, type AnyConfig } from './resolve';
 import type {
-  DeferredInputMarker, FeatureDef, FeatureSet, InputMarker, InputsShape, InputValues,
-  ResolveInputs, ResolveOptions, StateOf, ViolationHandler,
+  DeferredInputMarker, FeatureDef, FeatureSet, FromSetInputMarker, InputMarker, InputsShape, InputValues,
+  InferState, ResolveInputs, ResolveOptions, StateOf, ViolationHandler,
 } from './types';
 
 export const input = <T,>(): InputMarker<T> => ({ __unflag: 'input' });
@@ -13,6 +13,11 @@ export type DeferredInputTypeError = {
 
 export const deferredInput = <T,>(): [undefined] extends [T] ? DeferredInputTypeError
   : DeferredInputMarker<T> => ({ __unflag: 'deferred' }) as never;
+
+export const fromFeatureSet = <FS extends FeatureSet<InputsShape, unknown>>(
+  set: FS,
+): FromSetInputMarker<InferState<FS>> =>
+  ({ __unflag: 'fromSet', __set: set }) as FromSetInputMarker<InferState<FS>>;
 
 export function defineFeatures<
   I extends InputsShape,
