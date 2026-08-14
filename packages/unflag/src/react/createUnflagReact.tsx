@@ -6,9 +6,10 @@ import { applyOverrides } from '../core/overrides';
 import { explain as coreExplain } from '../core/explain';
 import {
   isProd,
-  type DeferredKeys, type FeatureSet, type InputsShape, type InputValues, type ResolveInputs,
-  type ResolveResult, type StateOf, type ViolationHandler,
+  type DeferredKeys, type FeatureSet, type FromSetKeys, type InputsShape, type InputValues,
+  type ResolveInputs, type ResolveResult, type StateOf, type ViolationHandler,
 } from '../core/types';
+import { getSetContext, registerSetContext } from './registry';
 import { readOverrides, writeOverrides } from './storage';
 
 export type UnflagContextValue<S> = {
@@ -21,7 +22,14 @@ export type UnflagContextValue<S> = {
   explain: (key: Extract<keyof S, string>) => string;
   schemas: Record<string, z.ZodType>;
   statuses: Record<string, 'ready' | 'unready'>;
+  parents: ReadonlyArray<{ label: string; ctx: UnflagContextValue<Record<string, unknown>> }>;
 };
+
+/** `UnflagProvider`'s `inputs` prop type: fromFeatureSet keys are auto-injected from the
+ * ancestor provider for that set, so the host must not (and cannot) pass them. */
+export type ProviderInputs<I extends InputsShape> = Omit<ResolveInputs<I>, FromSetKeys<I>>;
+
+const NullParentContext = createContext<unknown>(undefined);
 
 type ContributionEntry = { owner: string; value: unknown };
 
@@ -35,7 +43,15 @@ type ContributionApi = {
 export function createUnflagReact<I extends InputsShape, F>(featureSet: FeatureSet<I, F>) {
   type State = StateOf<F>;
   const Context = createContext<UnflagContextValue<State> | undefined>(undefined);
+  registerSetContext(featureSet as object, Context as React.Context<unknown>);
   const ContributionContext = createContext<ContributionApi | undefined>(undefined);
+
+  const fromSetEntries = Object.entries(
+    featureSet.inputs as Record<string, { __unflag?: string; __set?: object }>,
+  )
+    .filter(([, marker]) => marker.__unflag === 'fromSet')
+    .map(([name, marker]) => [name, marker.__set as object] as const)
+    .sort(([a], [b]) => a.localeCompare(b));
 
   function UnflagProvider({
     inputs,
@@ -44,7 +60,7 @@ export function createUnflagReact<I extends InputsShape, F>(featureSet: FeatureS
     onViolation,
     children,
   }: {
-    inputs: ResolveInputs<I>;
+    inputs: ProviderInputs<I>;
     enableOverrides?: boolean;
     storageKey?: string;
     onViolation?: ViolationHandler;
@@ -52,6 +68,36 @@ export function createUnflagReact<I extends InputsShape, F>(featureSet: FeatureS
   }) {
     const [overrides, setOverrides] = useState<Record<string, unknown>>(() =>
       enableOverrides ? readOverrides(storageKey) : {},
+    );
+
+    const parentValues: Array<{ label: string; ctx: UnflagContextValue<Record<string, unknown>> }> = [];
+    for (const [name, parentSet] of fromSetEntries) {
+      const parentContext = getSetContext(parentSet);
+      // eslint-disable-next-line react-hooks/rules-of-hooks -- fromSetEntries is constant per set, so hook order is stable
+      const parentValue = useContext((parentContext ?? NullParentContext) as React.Context<unknown>) as
+        | UnflagContextValue<Record<string, unknown>>
+        | undefined;
+      if (!parentValue) {
+        throw new Error(
+          `[unflag] UnflagProvider: input "${name}" comes fromFeatureSet(...), but no ancestor UnflagProvider for that set was found. Mount the parent set's provider above this one. If it IS mounted, your dependency tree may contain two copies of unflag (the parent registered in one copy's registry, this provider searched the other); dedupe the package.`,
+        );
+      }
+      parentValues.push({ label: name, ctx: parentValue });
+    }
+    // Memoized so the chain's identity changes ONLY when a parent republishes its context
+    // value. parentValues is a fresh array each render; without this memo the child's
+    // context value memo (which depends on `parents`) would republish every render and
+    // re-render every consumer under it. Deps length is constant per set (fromSetEntries
+    // is fixed), so the variable-length deps array is legal. Covers the no-parent case
+    // too: empty deps, computed once, stable [].
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- identity-keyed on each parent's context value
+    const parents = useMemo(
+      () =>
+        parentValues.flatMap(({ label, ctx }) => [
+          ...ctx.parents.map(p => ({ label: `${label}.${p.label}`, ctx: p.ctx })),
+          { label, ctx },
+        ]),
+      parentValues.map(({ ctx }) => ctx),
     );
 
     const [contributions, setContributions] = useState<Record<string, ContributionEntry>>({});
@@ -119,12 +165,14 @@ export function createUnflagReact<I extends InputsShape, F>(featureSet: FeatureS
       [],
     );
 
+    const parentStates = Object.fromEntries(parentValues.map(({ label, ctx }) => [label, ctx.result.state]));
     const effectiveInputs = useMemo(() => {
       const contributed = Object.fromEntries(
         Object.entries(contributions).map(([k, entry]) => [k, entry.value]),
       );
-      return { ...(inputs as Record<string, unknown>), ...contributed };
-    }, [inputs, contributions]);
+      return { ...(inputs as Record<string, unknown>), ...parentStates, ...contributed };
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- parentStates is identity-keyed by each parent's result.state
+    }, [inputs, contributions, ...parentValues.map(({ ctx }) => ctx.result.state)]);
 
     const base = useMemo(
       () =>
@@ -204,8 +252,9 @@ export function createUnflagReact<I extends InputsShape, F>(featureSet: FeatureS
         explain: key => coreExplain<State>(result, key),
         schemas: featureSet.schemas as Record<string, z.ZodType>,
         statuses,
+        parents,
       }),
-      [result, overrides, setOverride, clearOverride, clearAll, enableOverrides, statuses],
+      [result, overrides, setOverride, clearOverride, clearAll, enableOverrides, statuses, parents],
     );
 
     // Identity-stable (contribute/withdraw are useCallback([])): a contribution never
