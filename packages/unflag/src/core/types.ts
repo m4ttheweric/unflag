@@ -59,7 +59,7 @@ export type StateOf<F> = {
 export type ResolveOptions = { onViolation?: ViolationHandler };
 
 export type FeatureSet<I extends InputsShape, F> = {
-  inputs: I;
+  readonly inputs: I;
   resolve(inputs: InputValues<I>, opts?: ResolveOptions): ResolveResult<StateOf<F>>;
   graph(): Record<Extract<keyof F, string>, Record<string, readonly string[]>>;
   builder(baseline: InputValues<I>): (overrides?: Partial<StateOf<F>>) => StateOf<F>;
