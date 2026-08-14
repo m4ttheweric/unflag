@@ -20,6 +20,7 @@ export type UnflagContextValue<S> = {
   overridesEnabled: boolean;
   explain: (key: Extract<keyof S, string>) => string;
   schemas: Record<string, z.ZodType>;
+  statuses: Record<string, 'ready' | 'unready'>;
 };
 
 type ContributionEntry = { owner: string; value: unknown };
@@ -181,6 +182,17 @@ export function createUnflagReact<I extends InputsShape, F>(featureSet: FeatureS
 
     const clearAll = useCallback(() => setOverrides({}), []);
 
+    const statuses = useMemo(
+      () =>
+        Object.fromEntries(
+          Object.entries(result.provenance).map(([k, p]) => [
+            k,
+            (p as { unreadyFallback?: boolean }).unreadyFallback ? 'unready' : 'ready',
+          ]),
+        ) as Record<string, 'ready' | 'unready'>,
+      [result],
+    );
+
     const value = useMemo(
       (): UnflagContextValue<State> => ({
         result,
@@ -191,8 +203,9 @@ export function createUnflagReact<I extends InputsShape, F>(featureSet: FeatureS
         overridesEnabled: enableOverrides,
         explain: key => coreExplain<State>(result, key),
         schemas: featureSet.schemas as Record<string, z.ZodType>,
+        statuses,
       }),
-      [result, overrides, setOverride, clearOverride, clearAll, enableOverrides],
+      [result, overrides, setOverride, clearOverride, clearAll, enableOverrides, statuses],
     );
 
     // Identity-stable (contribute/withdraw are useCallback([])): a contribution never
@@ -217,6 +230,14 @@ export function createUnflagReact<I extends InputsShape, F>(featureSet: FeatureS
     const ctx = useContext(Context);
     if (!ctx) throw new Error('[unflag] useFeatures must be used within its UnflagProvider');
     return ctx.result.state;
+  }
+
+  function useFeatureStatus<K extends Extract<keyof State, string>>(
+    key: K,
+  ): { status: 'ready' | 'unready'; value: State[K] } {
+    const ctx = useContext(Context);
+    if (!ctx) throw new Error('[unflag] useFeatureStatus must be used within its UnflagProvider');
+    return { status: ctx.statuses[key] ?? 'ready', value: ctx.result.state[key] };
   }
 
   /**
@@ -247,5 +268,5 @@ export function createUnflagReact<I extends InputsShape, F>(featureSet: FeatureS
     }, [contribute, withdraw, key, owner, value]);
   }
 
-  return { UnflagProvider, useFeatures, useUnflag, useProvideInput };
+  return { UnflagProvider, useFeatures, useUnflag, useProvideInput, useFeatureStatus };
 }
