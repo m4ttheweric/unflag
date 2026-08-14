@@ -64,6 +64,12 @@ pnpm add -D @m4ttheweric/eslint-plugin-unflag   # optional, for the lint rule
 
 You need `zod >= 3.25`. The React parts need `react >= 18`.
 
+> [!NOTE]
+> **What's new in 0.2.0**: runtime behavior is back-compatible with 0.1.3. If you
+> structurally implement `FeatureSet` or `UnflagContextValue` yourself (rather than
+> using `defineFeatures` and `createUnflagReact`), you'll see new required members:
+> `inputs`, `resolvePartial`, `statuses`, and `parents`.
+
 ## Usage
 
 **Step 1: define your features.** Do this in one file, next to the raw config it reads. Each feature says what it reads, what shape it returns, and how to compute it:
@@ -361,6 +367,11 @@ same way.
 > mounted and you still see it, check for two copies of `unflag` in your dependency
 > tree. A duplicated package copy registers the parent in one copy's registry while
 > the child looks in the other's.
+
+> [!TIP]
+> If both a nested provider and its parent set `enableOverrides`, give them distinct
+> `storageKey`s. They otherwise share the default `'unflag'` key and collide in
+> localStorage.
 
 ## The dev panel
 

@@ -63,4 +63,18 @@ describe('useFeatureStatus / statuses', () => {
     act(() => unflagHandle.setOverride('chatMode', 'lite'));
     expect(statusHandle.value).toBe('lite');
   });
+
+  it('an overridden unready feature reports status ready, and reverts to unready once the override is cleared', () => {
+    render(
+      <UnflagProvider inputs={{ flags: { chat: true } }} enableOverrides storageKey="unflag.featureStatus.overriddenUnready">
+        <Capture />
+      </UnflagProvider>,
+    );
+    expect(statusHandle).toEqual({ status: 'unready', value: 'off' });
+    act(() => unflagHandle.setOverride('chatMode', 'lite'));
+    expect(statusHandle).toEqual({ status: 'ready', value: 'lite' });
+    expect(unflagHandle.statuses.chatMode).toBe('ready');
+    act(() => unflagHandle.clearOverride('chatMode'));
+    expect(statusHandle).toEqual({ status: 'unready', value: 'off' });
+  });
 });

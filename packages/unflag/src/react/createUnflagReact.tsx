@@ -100,6 +100,13 @@ export function createUnflagReact<I extends InputsShape, F>(featureSet: FeatureS
       parentValues.map(({ ctx }) => ctx),
     );
 
+    // Kept current every render (not read during render itself) so `contribute` -- a
+    // useCallback([])-stable function -- can see the host's latest `inputs` prop without
+    // being redefined per render.
+    const hostInputsRef = useRef(inputs);
+    hostInputsRef.current = inputs;
+    const shadowWarnedRef = useRef(new Set<string>());
+
     const [contributions, setContributions] = useState<Record<string, ContributionEntry>>({});
     const contributorsRef = useRef(new Map<string, Set<string>>());
     // Dev-only identity-churn detection (spec 2.2): survives withdraw (which is why it does
@@ -114,6 +121,15 @@ export function createUnflagReact<I extends InputsShape, F>(featureSet: FeatureS
       contributorsRef.current.set(key, owners);
       if (owners.size > 1 && !isProd()) {
         console.warn(`[unflag] input "${key}" has ${owners.size} live contributors; last write wins`);
+      }
+      if (!isProd() && !shadowWarnedRef.current.has(key)) {
+        const hostValue = (hostInputsRef.current as Record<string, unknown>)[key];
+        if (hostValue !== undefined) {
+          shadowWarnedRef.current.add(key);
+          console.warn(
+            `[unflag] input "${key}" was provided by the host and is now shadowed by a useProvideInput contribution; the contribution wins`,
+          );
+        }
       }
       let dropped = false;
       if (!isProd()) {
@@ -233,10 +249,14 @@ export function createUnflagReact<I extends InputsShape, F>(featureSet: FeatureS
     const statuses = useMemo(
       () =>
         Object.fromEntries(
-          Object.entries(result.provenance).map(([k, p]) => [
-            k,
-            (p as { unreadyFallback?: boolean }).unreadyFallback ? 'unready' : 'ready',
-          ]),
+          Object.entries(result.provenance).map(([k, p]) => {
+            const prov = p as { overridden?: boolean; unreadyFallback?: boolean };
+            // An override always reports 'ready': status describes what the consumer is
+            // served, and an override is a settled, intentional value regardless of
+            // whether the underlying resolution was unready. Dev-panel badges are
+            // unaffected by this (they still render straight from provenance).
+            return [k, !prov.overridden && prov.unreadyFallback ? 'unready' : 'ready'];
+          }),
         ) as Record<string, 'ready' | 'unready'>,
       [result],
     );

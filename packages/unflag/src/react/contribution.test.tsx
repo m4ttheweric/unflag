@@ -158,6 +158,40 @@ describe('useProvideInput', () => {
     warn.mockRestore();
   });
 
+  it('a host-provided deferred input resolves features with no contributor present (spec 2.2)', () => {
+    render(
+      <UnflagProvider inputs={{ flags: { chat: true }, strategy: { mode: 'full' } }}>
+        <Show />
+      </UnflagProvider>,
+    );
+    expect(screen.getByTestId('mode').textContent).toBe('full');
+  });
+
+  it('a contribution shadows a host-provided deferred input, wins, and warns once in dev', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    render(
+      <UnflagProvider inputs={{ flags: { chat: true }, strategy: { mode: 'full' } }}>
+        <Show />
+        <Contributor value={{ mode: 'lite' }} />
+      </UnflagProvider>,
+    );
+    expect(screen.getByTestId('mode').textContent).toBe('lite');
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        '[unflag] input "strategy" was provided by the host and is now shadowed by a useProvideInput contribution; the contribution wins',
+      ),
+    );
+    warn.mockRestore();
+  });
+
+  it('the shadow warning does not fire when the host did not provide the key', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    render(app(<Contributor value={{ mode: 'lite' }} />));
+    expect(screen.getByTestId('mode').textContent).toBe('lite');
+    expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('was provided by the host'));
+    warn.mockRestore();
+  });
+
   it('types: only deferred input keys are contributable', () => {
     function Bad() {
       // @ts-expect-error 'flags' is a plain input, not deferred
