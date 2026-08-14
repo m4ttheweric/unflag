@@ -80,7 +80,26 @@ export function resolveFeatures(
           `[unflag] resolve() is missing required input(s) ${missingPlain.join(', ')} needed by feature "${key}"`,
         );
       }
-      const value = def.unready; // static form only in this task; fn form is Task 3
+      let value: unknown;
+      if (typeof def.unready === 'function') {
+        const plainProxied = buildProxied(inputs, name => deferredNames.has(name), key, declared, reads, handler);
+        try {
+          value = (def.unready as (i: Record<string, unknown>) => unknown)(plainProxied);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          throw new Error(`[unflag] feature "${key}" unready resolver threw: ${msg}`, { cause: e });
+        }
+        if (!isProd()) {
+          const parsed = def.output.safeParse(value);
+          if (!parsed.success) {
+            throw new Error(
+              `[unflag] feature "${key}" unready resolver returned a value that does not match its output schema: ${parsed.error.message}`,
+            );
+          }
+        }
+      } else {
+        value = def.unready;
+      }
       state[key] = value;
       provenance[key] = {
         value,

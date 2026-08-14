@@ -118,3 +118,92 @@ describe('unready fallbacks (static)', () => {
     ).toThrowError(/'unready' value does not match its output schema/);
   });
 });
+
+describe('unready resolver form', () => {
+  const makeFn = () =>
+    defineFeatures({
+      inputs: { flags: input<Flags>(), strategy: deferredInput<Strategy>() },
+      features: {
+        chatMode: {
+          reads: { flags: ['chat'], strategy: ['mode'] },
+          output: z.enum(['resolving', 'unavailable', 'full', 'lite']),
+          unready: ({ flags }) => (flags.chat ? 'resolving' : 'unavailable'),
+          resolve: ({ flags, strategy }) => (!flags.chat || !strategy ? 'unavailable' : strategy.mode),
+        },
+      },
+    });
+
+  it('computes the waiting state from non-deferred inputs', () => {
+    expect(makeFn().resolve({ flags: { chat: true } }).state.chatMode).toBe('resolving');
+    expect(makeFn().resolve({ flags: { chat: false } }).state.chatMode).toBe('unavailable');
+  });
+
+  it('unready resolver receives ONLY non-deferred inputs (deferred absent from its arg)', () => {
+    const set = defineFeatures({
+      inputs: { flags: input<Flags>(), strategy: deferredInput<Strategy>(), other: deferredInput<{ y: 1 }>() },
+      features: {
+        probe: {
+          reads: { flags: ['chat'], strategy: ['mode'] },
+          output: z.boolean(),
+          unready: inputs => {
+            expect(Object.keys(inputs)).toEqual(['flags']);
+            return false;
+          },
+          resolve: () => true,
+        },
+      },
+    });
+    // 'other' IS provided, but deferred inputs are excluded from the unready arg regardless
+    set.resolve({ flags: { chat: true }, other: { y: 1 } });
+  });
+
+  it('flags undeclared reads inside the unready resolver via onViolation', () => {
+    const violations: unknown[] = [];
+    const set = defineFeatures({
+      inputs: { flags: input<{ chat: boolean; secret: string }>(), strategy: deferredInput<Strategy>() },
+      features: {
+        probe: {
+          reads: { flags: ['chat'], strategy: ['mode'] },
+          output: z.boolean(),
+          unready: ({ flags }) => flags.secret === 'x',
+          resolve: () => true,
+        },
+      },
+      onViolation: v => violations.push(v),
+    });
+    set.resolve({ flags: { chat: true, secret: 'x' } });
+    expect(violations).toContainEqual({ feature: 'probe', input: 'flags', key: 'secret' });
+  });
+
+  it('wraps an unready resolver throw with feature context', () => {
+    const set = defineFeatures({
+      inputs: { strategy: deferredInput<Strategy>() },
+      features: {
+        probe: {
+          reads: { strategy: ['mode'] },
+          output: z.boolean(),
+          unready: () => { throw new Error('boom'); },
+          resolve: () => true,
+        },
+      },
+    });
+    expect(() => set.resolve({})).toThrowError('[unflag] feature "probe" unready resolver threw: boom');
+  });
+
+  it('validates the unready resolver output against the schema in dev', () => {
+    const set = defineFeatures({
+      inputs: { strategy: deferredInput<Strategy>() },
+      features: {
+        probe: {
+          reads: { strategy: ['mode'] },
+          output: z.enum(['a', 'b']),
+          unready: () => 'nope' as 'a',
+          resolve: () => 'a' as const,
+        },
+      },
+    });
+    expect(() => set.resolve({})).toThrowError(
+      /feature "probe" unready resolver returned a value that does not match its output schema/,
+    );
+  });
+});
