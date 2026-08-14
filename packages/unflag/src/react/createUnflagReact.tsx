@@ -112,7 +112,10 @@ export function createUnflagReact<I extends InputsShape, F>(featureSet: FeatureS
     // Dev-only identity-churn detection (spec 2.2): survives withdraw (which is why it does
     // not read `contributions`), resets on a quiet window or a same-identity contribution.
     const churnRef = useRef(
-      new Map<string, { last: unknown; count: number; reset: ReturnType<typeof setTimeout> | undefined }>(),
+      new Map<
+        string,
+        { last: unknown; count: number; owner: string; reset: ReturnType<typeof setTimeout> | undefined }
+      >(),
     );
 
     const contribute = useCallback((key: string, owner: string, value: unknown) => {
@@ -136,14 +139,25 @@ export function createUnflagReact<I extends InputsShape, F>(featureSet: FeatureS
         const churn = churnRef.current.get(key);
         if (churn === undefined || Object.is(churn.last, value)) {
           if (churn?.reset) clearTimeout(churn.reset);
-          churnRef.current.set(key, { last: value, count: 0, reset: undefined });
+          churnRef.current.set(key, { last: value, count: 0, owner, reset: undefined });
         } else {
           clearTimeout(churn.reset);
           const count = churn.count + 1;
           churnRef.current.set(key, {
             last: value,
             count,
-            reset: setTimeout(() => churnRef.current.delete(key), 100),
+            owner,
+            reset: setTimeout(() => {
+              const entry = churnRef.current.get(key);
+              churnRef.current.delete(key);
+              if (entry && entry.count >= 4 && contributorsRef.current.get(key)?.has(entry.owner)) {
+                setContributions(prev =>
+                  prev[key] && Object.is(prev[key].value, entry.last)
+                    ? prev
+                    : { ...prev, [key]: { owner: entry.owner, value: entry.last } },
+                );
+              }
+            }, 100),
           });
           if (count === 4) {
             console.warn(
@@ -315,10 +329,13 @@ export function createUnflagReact<I extends InputsShape, F>(featureSet: FeatureS
    * The contributed value MUST be referentially stable (memoized or query-owned); a
    * fresh object per render re-resolves every render and, if this component also reads
    * feature state, loops indefinitely (React does not crash effect loops); unflag warns
-   * once and then drops churning contributions for that key until a quiet window. The
-   * churn guard is development-only; in production builds a churning contributor that
-   * also reads feature state loops unbounded, which is why the guard exists to catch it
-   * before ship. Two live contributors for one key is misuse (dev-warned): last write
+   * once and then drops churning contributions for that key until a quiet window; once the
+   * churn quiets, the last-seen value is applied automatically (if the contributor is
+   * still mounted), so a legitimate rapid burst is throttled by at most the quiet window
+   * and is never stranded on the unready fallback. The churn guard is development-only;
+   * in production builds a churning contributor that also reads feature state loops
+   * unbounded, which is why the guard exists to catch it before ship. Two live
+   * contributors for one key is misuse (dev-warned): last write
    * wins, and after the winning contributor unmounts the loser does NOT take over (its
    * effect deps never changed); the input reverts to unready.
    */

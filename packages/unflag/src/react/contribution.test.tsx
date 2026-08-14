@@ -149,6 +149,57 @@ describe('useProvideInput', () => {
     warn.mockRestore();
   });
 
+  it('re-feeds the last contributed value once the churn quiets down', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let n = 0;
+    function FreshObject() {
+      const [, force] = useState(0);
+      (window as { __force?: () => void }).__force = () => force(v => v + 1);
+      n += 1;
+      // deliberately unmemoized: a new object identity every distinct-identity render
+      useProvideInput('strategy', { mode: n % 2 === 0 ? 'full' : 'lite' });
+      return null;
+    }
+    render(app(<FreshObject />));
+    for (let i = 0; i < 6; i += 1) act(() => (window as { __force?: () => void }).__force!());
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('changes identity every render'));
+
+    // Breaker engaged: the feature is stranded on the unready fallback even though the
+    // app believes the contribution landed.
+    expect(screen.getByTestId('mode').textContent).toBe('off');
+
+    // Wait out the quiet window: the last-seen value should be re-fed automatically.
+    await act(async () => new Promise(resolve => setTimeout(resolve, 150)));
+    expect(screen.getByTestId('mode').textContent).toBe(n % 2 === 0 ? 'full' : 'lite');
+
+    warn.mockRestore();
+  });
+
+  it('does not resurrect a churning contribution if the contributor unmounted before the quiet window', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let n = 0;
+    function FreshObject() {
+      const [, force] = useState(0);
+      (window as { __force?: () => void }).__force = () => force(v => v + 1);
+      n += 1;
+      // deliberately unmemoized: a new object identity every distinct-identity render
+      useProvideInput('strategy', { mode: n % 2 === 0 ? 'full' : 'lite' });
+      return null;
+    }
+    const { rerender } = render(app(<FreshObject />));
+    for (let i = 0; i < 6; i += 1) act(() => (window as { __force?: () => void }).__force!());
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('changes identity every render'));
+    expect(screen.getByTestId('mode').textContent).toBe('off');
+
+    // Unmount the contributor before the quiet window closes.
+    act(() => rerender(app(null)));
+
+    await act(async () => new Promise(resolve => setTimeout(resolve, 150)));
+    expect(screen.getByTestId('mode').textContent).toBe('off');
+
+    warn.mockRestore();
+  });
+
   it('the churn warning stays silent for a stable value across many rerenders', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const stable: Strategy = { mode: 'full' };

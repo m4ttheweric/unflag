@@ -266,9 +266,11 @@ below for why a host-side `resolvePartial` call is not.
 > identity changes in a row it warns once, naming the key and the fix. Then it
 > **drops** further identity-churning contributions for that key until they quiet down.
 > While the guard is engaged, the feature serves its declared `unready` fallback,
-> stale but alive, instead of hanging. This is a safety net for a bug, not a
-> substitute for memoizing. A same-identity contribution is always accepted and never
-> trips it.
+> stale but alive, instead of hanging. Once the churn quiets down, the last contributed
+> value lands automatically (as long as the contributor is still mounted), so a
+> legitimate rapid burst is throttled for a moment, never stranded. This is a safety
+> net for a bug, not a substitute for memoizing. A same-identity contribution is always
+> accepted and never trips it.
 
 ## Explicit status: useFeatureStatus
 
