@@ -48,4 +48,9 @@ describe('defineFeatures/resolve', () => {
     expect(Object.getOwnPropertyDescriptor(result, SCHEMAS)?.enumerable).toBe(false);
     expect(Object.keys(result)).toEqual(['state', 'provenance']);
   });
+
+  it('exposes the input markers on the set as .inputs', () => {
+    const set = make();
+    expect(set.inputs.flags).toEqual({ __unflag: 'input' });
+  });
 });

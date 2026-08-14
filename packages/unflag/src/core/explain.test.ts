@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod/v4';
-import { applyOverrides, defineFeatures, explain, input } from '../index';
+import { applyOverrides, defineFeatures, deferredInput, explain, input } from '../index';
 
 const make = () =>
   defineFeatures({
@@ -46,6 +46,22 @@ describe('explain', () => {
     expect(() => explain(result, 'nope' as never)).toThrowError(
       '[unflag] explain: unknown feature "nope"',
     );
+  });
+
+  it('surfaces unready status with the awaited inputs', () => {
+    const withUnready = defineFeatures({
+      inputs: { flags: input<{ chat: boolean }>(), strategy: deferredInput<{ mode: 'full' | 'lite' } | null>() },
+      features: {
+        chatMode: {
+          reads: { flags: ['chat'], strategy: ['mode'] },
+          output: z.enum(['full', 'lite', 'off']),
+          unready: 'off',
+          resolve: ({ flags, strategy }) => (!flags.chat || !strategy ? 'off' : strategy.mode),
+        },
+      },
+    });
+    const result = withUnready.resolve({ flags: { chat: true } });
+    expect(explain(result, 'chatMode')).toBe('chatMode = "off" (unready: awaiting strategy)');
   });
 
   it('does not throw for a feature resolving to a BigInt, which JSON.stringify rejects', () => {

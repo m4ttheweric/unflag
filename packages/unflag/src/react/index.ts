@@ -1,1 +1,1 @@
-export { createUnflagReact, type UnflagContextValue } from './createUnflagReact';
+export { createUnflagReact, type ProviderInputs, type UnflagContextValue } from './createUnflagReact';

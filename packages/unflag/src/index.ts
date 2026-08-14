@@ -1,10 +1,14 @@
 export { applyOverrides } from './core/overrides';
-export { defineFeatures, input } from './core/define';
+export { defineFeatures, deferredInput, fromFeatureSet, input, type DeferredInputTypeError } from './core/define';
 export { explain } from './core/explain';
+export { keyMirror } from './core/keyMirror';
 export { safeStringify } from './core/safeStringify';
 export {
   SCHEMAS,
-  type FeatureDef, type FeatureProvenance, type FeatureSet, type InferState,
+  type AnyInputMarker, type DeferredInputMarker, type DeferredKeys,
+  type FeatureDef, type FeatureProvenance, type FeatureSet, type FromSetInputMarker,
+  type FromSetKeys, type InferState,
   type InputMarker, type InputsShape, type InputValues,
-  type Read, type ResolveResult, type StateOf, type Violation, type ViolationHandler,
+  type PlainKeys, type ProvidedKeys, type Read, type ResolveInputs, type ResolveResult,
+  type SatisfiedState, type StateOf, type UnreadyDecl, type Violation, type ViolationHandler,
 } from './core/types';

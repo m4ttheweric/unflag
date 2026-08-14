@@ -1,9 +1,9 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod/v4';
-import { defineFeatures, input } from '../../index';
+import { defineFeatures, deferredInput, fromFeatureSet, input } from '../../index';
 import { createUnflagReact } from '../index';
 import { UnflagDevPanel } from './index';
 
@@ -227,6 +227,118 @@ describe('UnflagDevPanel', () => {
     // guard treats parsed `10` (number) as textually equal to the underlying `10n` and
     // does NOT call onApply here -- no override gets created for same-looking text.
     expect(screen.queryByText('overridden')).toBeNull();
+  });
+
+  it('renders parent sections above the child set when providers are nested', async () => {
+    const appSet = defineFeatures({
+      inputs: { flags: input<{ chat: boolean }>() },
+      features: {
+        chatEnabled: { reads: { flags: ['chat'] }, output: z.boolean(), resolve: ({ flags }) => flags.chat },
+      },
+    });
+    const caseSet = defineFeatures({
+      inputs: { app: fromFeatureSet(appSet), gates: input<{ shell: boolean }>() },
+      features: {
+        chatOffered: {
+          reads: { app: ['chatEnabled'], gates: ['shell'] },
+          output: z.boolean(),
+          resolve: ({ app, gates }) => app.chatEnabled && !gates.shell,
+        },
+      },
+    });
+    const App = createUnflagReact(appSet);
+    const Case = createUnflagReact(caseSet);
+
+    render(
+      <App.UnflagProvider inputs={{ flags: { chat: true } }}>
+        <Case.UnflagProvider inputs={{ gates: { shell: false } }}>
+          <UnflagDevPanel useUnflag={Case.useUnflag} />
+        </Case.UnflagProvider>
+      </App.UnflagProvider>,
+    );
+    await openPanel();
+
+    const sectionHeader = screen.getByText('app');
+    const parentRow = screen.getByText('chatEnabled');
+    const childRow = screen.getByText('chatOffered');
+
+    expect(sectionHeader).toBeDefined();
+    expect(parentRow).toBeDefined();
+    expect(childRow).toBeDefined();
+
+    // DOM order: the 'app' section (header + its row) precedes the child's own rows.
+    expect(
+      sectionHeader.compareDocumentPosition(childRow) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      parentRow.compareDocumentPosition(childRow) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('hides a section header when the filter leaves zero visible rows in that section', async () => {
+    const appSet = defineFeatures({
+      inputs: { flags: input<{ chat: boolean }>() },
+      features: {
+        chatEnabled: { reads: { flags: ['chat'] }, output: z.boolean(), resolve: ({ flags }) => flags.chat },
+      },
+    });
+    const caseSet = defineFeatures({
+      inputs: { app: fromFeatureSet(appSet), gates: input<{ shell: boolean }>() },
+      features: {
+        chatOffered: {
+          reads: { app: ['chatEnabled'], gates: ['shell'] },
+          output: z.boolean(),
+          resolve: ({ app, gates }) => app.chatEnabled && !gates.shell,
+        },
+      },
+    });
+    const App = createUnflagReact(appSet);
+    const Case = createUnflagReact(caseSet);
+
+    render(
+      <App.UnflagProvider inputs={{ flags: { chat: true } }}>
+        <Case.UnflagProvider inputs={{ gates: { shell: false } }}>
+          <UnflagDevPanel useUnflag={Case.useUnflag} />
+        </Case.UnflagProvider>
+      </App.UnflagProvider>,
+    );
+    await openPanel();
+
+    // Filter matches only the child set's feature name, so the parent 'app' section
+    // has zero visible rows and its header should not render at all.
+    await userEvent.type(filterInput(), 'chatOffered');
+
+    expect(screen.getByText('chatOffered')).toBeDefined();
+    expect(screen.queryByText('app')).toBeNull();
+  });
+
+  it('badges unready features', async () => {
+    const unreadySet = defineFeatures({
+      inputs: {
+        flags: input<{ chat: boolean }>(),
+        strategy: deferredInput<{ mode: 'full' | 'lite' } | null>(),
+      },
+      features: {
+        offered: { reads: { flags: ['chat'] }, output: z.boolean(), resolve: ({ flags }) => flags.chat },
+        chatMode: {
+          reads: { flags: ['chat'], strategy: ['mode'] },
+          output: z.enum(['full', 'lite', 'off']),
+          unready: 'off',
+          resolve: ({ flags, strategy }) => (!flags.chat || !strategy ? 'off' : strategy.mode),
+        },
+      },
+    });
+    const { UnflagProvider: UnreadyProvider, useUnflag: useUnreadyUnflag } = createUnflagReact(unreadySet);
+
+    render(
+      <UnreadyProvider inputs={{ flags: { chat: true } }}>
+        <UnflagDevPanel useUnflag={useUnreadyUnflag} />
+      </UnreadyProvider>,
+    );
+    await openPanel();
+
+    expect(within(rowButton('chatMode')).getByText('unready')).toBeDefined();
+    expect(within(rowButton('offered')).queryByText('unready')).toBeNull();
   });
 });
 

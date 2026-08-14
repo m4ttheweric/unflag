@@ -39,6 +39,13 @@ export const styles = {
     borderRadius: 6, font: '12px system-ui, sans-serif',
   },
   counts: { fontSize: 11, opacity: 0.75, marginTop: 6 },
+  // Same visual family as `counts`: a small, low-emphasis label, but bolded and
+  // separated from the previous section so a nested panel's parent/child sections
+  // stay visually distinct without competing with the row content below them.
+  sectionHeader: {
+    fontSize: 11, opacity: 0.75, fontWeight: 700, textTransform: 'uppercase' as const,
+    letterSpacing: 0.4, marginTop: 10, marginBottom: 2,
+  },
   row: { borderBottom: `1px solid ${border}` },
   rowHead: {
     display: 'flex', alignItems: 'center', gap: 8, width: '100%',
@@ -55,6 +62,14 @@ export const styles = {
   empty: { fontSize: 12, opacity: 0.6, padding: '12px 0' },
   badge: {
     background: accent, color: '#fff', borderRadius: 4, padding: '1px 6px',
+    fontSize: 10, textTransform: 'uppercase' as const,
+  },
+  // Distinct (amber) from `badge`'s accent color so an unready fallback reads as a
+  // waiting state, not as an override -- the two can appear side by side on one row.
+  // #b45309 (not the lighter #d97706) is the darkest step that still reads as amber
+  // while clearing WCAG AA contrast against white at this font size: 5.02:1 vs 3.19:1.
+  badgeUnready: {
+    background: '#b45309', color: '#fff', borderRadius: 4, padding: '1px 6px',
     fontSize: 10, textTransform: 'uppercase' as const,
   },
   small: { fontSize: 11, opacity: 0.75 },

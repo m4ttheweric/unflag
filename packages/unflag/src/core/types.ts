@@ -1,19 +1,47 @@
 import type { z } from 'zod/v4';
 
 export type InputMarker<T> = { readonly __unflag: 'input'; readonly __t?: T };
-export type InputsShape = Record<string, InputMarker<unknown>>;
+export type DeferredInputMarker<T> = { readonly __unflag: 'deferred'; readonly __t?: T };
+export type FromSetInputMarker<T> = { readonly __unflag: 'fromSet'; readonly __set: object; readonly __t?: T };
+export type AnyInputMarker<T> = InputMarker<T> | DeferredInputMarker<T> | FromSetInputMarker<T>;
+export type InputsShape = Record<string, AnyInputMarker<unknown>>;
 
 export type InputValues<I extends InputsShape> = {
-  [K in keyof I]: I[K] extends InputMarker<infer T> ? T : never;
+  [K in keyof I]: I[K] extends AnyInputMarker<infer T> ? T : never;
+};
+
+export type DeferredKeys<I extends InputsShape> = {
+  [K in keyof I]: I[K] extends { readonly __unflag: 'deferred' } ? K : never;
+}[keyof I];
+export type FromSetKeys<I extends InputsShape> = {
+  [K in keyof I]: I[K] extends { readonly __unflag: 'fromSet' } ? K : never;
+}[keyof I];
+export type PlainKeys<I extends InputsShape> = Exclude<keyof I, DeferredKeys<I>>;
+
+/** resolve()'s input type: plain (and fromSet) keys required, deferred keys optional. */
+export type ResolveInputs<I extends InputsShape> = { [K in PlainKeys<I>]: InputValues<I>[K] } & {
+  [K in DeferredKeys<I>]?: InputValues<I>[K];
 };
 
 export type ReadsFor<I extends InputsShape> = {
-  [K in keyof I]?: readonly Extract<keyof InputValues<I>[K], string>[];
+  [K in keyof I]?: readonly Extract<keyof NonNullable<InputValues<I>[K]>, string>[];
 };
+
+export type UnreadyDecl<I extends InputsShape, Out extends z.ZodType> =
+  | z.output<Out>
+  | ((inputs: Pick<InputValues<I>, PlainKeys<I> & keyof I>) => z.output<Out>);
 
 export type FeatureDef<I extends InputsShape, Out extends z.ZodType> = {
   reads: ReadsFor<I>;
   output: Out;
+  /**
+   * Required iff `reads` names a deferred input. Serves as the feature's resolved
+   * value while that input is absent. Function form computes the waiting state from
+   * the non-deferred inputs. NOTE: an output schema whose values are themselves
+   * functions cannot use the static form (typeof-function is how the forms are told
+   * apart); such outputs are outside unflag's domain.
+   */
+  unready?: UnreadyDecl<I, Out>;
   resolve: (inputs: InputValues<I>) => z.output<Out>;
 };
 
@@ -28,6 +56,8 @@ export type FeatureProvenance = {
   overridden: boolean;
   underlying?: unknown;
   staleOverrideDiscarded?: { attempted: unknown; reason: string };
+  unreadyFallback?: boolean;
+  awaitingInputs?: readonly string[];
 };
 
 export type ResolveResult<S> = {
@@ -40,10 +70,27 @@ export type StateOf<F> = {
   -readonly [K in keyof F]: F[K] extends { output: infer O extends z.ZodType } ? z.output<O> : never;
 };
 
+/** Keys of P actually provided: a property whose type admits undefined does not count. */
+export type ProvidedKeys<P> = {
+  [K in keyof P]-?: undefined extends P[K] ? never : K;
+}[keyof P];
+
+/** Features whose declared reads are fully covered by the provided input keys P. */
+export type SatisfiedState<F, P> = {
+  -readonly [K in keyof F as F[K] extends { reads: infer R }
+    ? [keyof R] extends [ProvidedKeys<P>] ? K : never
+    : never]: F[K] extends { output: infer O extends z.ZodType } ? z.output<O> : never;
+};
+
 export type ResolveOptions = { onViolation?: ViolationHandler };
 
 export type FeatureSet<I extends InputsShape, F> = {
-  resolve(inputs: InputValues<I>, opts?: ResolveOptions): ResolveResult<StateOf<F>>;
+  readonly inputs: I;
+  resolve(inputs: ResolveInputs<I>, opts?: ResolveOptions): ResolveResult<StateOf<F>>;
+  resolvePartial<P extends Partial<InputValues<I>>>(
+    inputs: P,
+    opts?: ResolveOptions,
+  ): ResolveResult<SatisfiedState<F, P>>;
   graph(): Record<Extract<keyof F, string>, Record<string, readonly string[]>>;
   builder(baseline: InputValues<I>): (overrides?: Partial<StateOf<F>>) => StateOf<F>;
   schemas: { [K in keyof F]: z.ZodType };
