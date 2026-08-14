@@ -10,6 +10,8 @@ export type AnyConfig = { inputs: InputsShape; features: Record<string, AnyFeatu
 
 type ViolationHandlerFn = (v: { feature: string; input: string; key: string }) => void;
 
+export type ResolveMode = 'total' | 'partial';
+
 function buildProxied(
   inputs: Record<string, unknown>,
   skip: (name: string) => boolean,
@@ -45,6 +47,7 @@ export function resolveFeatures(
   config: AnyConfig,
   inputs: Record<string, unknown>,
   opts?: ResolveOptions,
+  mode: ResolveMode = 'total',
 ): ResolveResult<Record<string, unknown>> {
   const state: Record<string, unknown> = {};
   const provenance: Record<string, FeatureProvenance> = {};
@@ -74,6 +77,7 @@ export function resolveFeatures(
     const reads: Read[] = [];
 
     if (missing.length > 0) {
+      if (mode === 'partial') continue; // skip: no state, no provenance, no violations
       const missingPlain = missing.filter(name => !deferredNames.has(name));
       if (missingPlain.length > 0) {
         throw new Error(

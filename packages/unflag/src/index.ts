@@ -9,5 +9,5 @@ export {
   type FromSetKeys, type InferState,
   type InputMarker, type InputsShape, type InputValues,
   type PlainKeys, type Read, type ResolveInputs, type ResolveResult,
-  type StateOf, type UnreadyDecl, type Violation, type ViolationHandler,
+  type SatisfiedState, type StateOf, type UnreadyDecl, type Violation, type ViolationHandler,
 } from './core/types';

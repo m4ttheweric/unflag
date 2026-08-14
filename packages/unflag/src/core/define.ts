@@ -63,6 +63,8 @@ export function defineFeatures<
       resolveFeatures(config as unknown as AnyConfig, inputs, opts) as ReturnType<
         FeatureSet<I, F>['resolve']
       >,
+    resolvePartial: (inputs: Partial<InputValues<I>>, opts?: ResolveOptions) =>
+      resolveFeatures(config as unknown as AnyConfig, inputs, opts, 'partial') as never,
     graph: () =>
       Object.fromEntries(
         Object.entries(config.features).map(([k, def]) => [

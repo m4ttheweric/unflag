@@ -70,11 +70,22 @@ export type StateOf<F> = {
   -readonly [K in keyof F]: F[K] extends { output: infer O extends z.ZodType } ? z.output<O> : never;
 };
 
+/** Features whose declared reads are fully covered by the provided input keys P. */
+export type SatisfiedState<F, P> = {
+  -readonly [K in keyof F as F[K] extends { reads: infer R }
+    ? [keyof R] extends [keyof P] ? K : never
+    : never]: F[K] extends { output: infer O extends z.ZodType } ? z.output<O> : never;
+};
+
 export type ResolveOptions = { onViolation?: ViolationHandler };
 
 export type FeatureSet<I extends InputsShape, F> = {
   readonly inputs: I;
   resolve(inputs: ResolveInputs<I>, opts?: ResolveOptions): ResolveResult<StateOf<F>>;
+  resolvePartial<P extends Partial<InputValues<I>>>(
+    inputs: P,
+    opts?: ResolveOptions,
+  ): ResolveResult<SatisfiedState<F, P>>;
   graph(): Record<Extract<keyof F, string>, Record<string, readonly string[]>>;
   builder(baseline: InputValues<I>): (overrides?: Partial<StateOf<F>>) => StateOf<F>;
   schemas: { [K in keyof F]: z.ZodType };
