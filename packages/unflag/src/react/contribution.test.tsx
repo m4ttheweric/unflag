@@ -135,11 +135,16 @@ describe('useProvideInput', () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('changes identity every render'));
     warn.mockClear();
 
+    // Degradation lands on the designed no-contribution state (spec 2.2), not the last
+    // value that was accepted before the breaker engaged.
+    expect(screen.getByTestId('mode').textContent).toBe('off');
+
     const resolveSpy = vi.spyOn(featureSet, 'resolve');
     const countAfterWarning = resolveSpy.mock.calls.length;
     act(() => (window as { __force?: () => void }).__force!());
     act(() => (window as { __force?: () => void }).__force!());
     expect(resolveSpy.mock.calls.length).toBe(countAfterWarning);
+    expect(screen.getByTestId('mode').textContent).toBe('off');
     resolveSpy.mockRestore();
     warn.mockRestore();
   });

@@ -24,7 +24,7 @@ export type UnflagContextValue<S> = {
 
 type ContributionEntry = { owner: string; value: unknown };
 
-/** @internal contribution plumbing for useProvideInput, kept off the state context so a
+/** Contribution plumbing for useProvideInput, kept off the state context so a
  * contribution never forces a re-render of components that only consume this context. */
 type ContributionApi = {
   contribute: (key: string, owner: string, value: unknown) => void;
@@ -225,10 +225,12 @@ export function createUnflagReact<I extends InputsShape, F>(featureSet: FeatureS
    * The contributed value MUST be referentially stable (memoized or query-owned); a
    * fresh object per render re-resolves every render and, if this component also reads
    * feature state, loops indefinitely (React does not crash effect loops); unflag warns
-   * once and then drops churning contributions for that key until a quiet window. Two
-   * live contributors for one key is misuse (dev-warned): last write wins, and after the
-   * winning contributor unmounts the loser does NOT take over (its effect deps never
-   * changed); the input reverts to unready.
+   * once and then drops churning contributions for that key until a quiet window. The
+   * churn guard is development-only; in production builds a churning contributor that
+   * also reads feature state loops unbounded, which is why the guard exists to catch it
+   * before ship. Two live contributors for one key is misuse (dev-warned): last write
+   * wins, and after the winning contributor unmounts the loser does NOT take over (its
+   * effect deps never changed); the input reverts to unready.
    */
   function useProvideInput<K extends Extract<DeferredKeys<I>, string>>(
     key: K,
