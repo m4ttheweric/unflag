@@ -24,12 +24,24 @@ export type ResolveInputs<I extends InputsShape> = { [K in PlainKeys<I>]: InputV
 };
 
 export type ReadsFor<I extends InputsShape> = {
-  [K in keyof I]?: readonly Extract<keyof InputValues<I>[K], string>[];
+  [K in keyof I]?: readonly Extract<keyof NonNullable<InputValues<I>[K]>, string>[];
 };
+
+export type UnreadyDecl<I extends InputsShape, Out extends z.ZodType> =
+  | z.output<Out>
+  | ((inputs: Pick<InputValues<I>, PlainKeys<I> & keyof I>) => z.output<Out>);
 
 export type FeatureDef<I extends InputsShape, Out extends z.ZodType> = {
   reads: ReadsFor<I>;
   output: Out;
+  /**
+   * Required iff `reads` names a deferred input. Serves as the feature's resolved
+   * value while that input is absent. Function form computes the waiting state from
+   * the non-deferred inputs. NOTE: an output schema whose values are themselves
+   * functions cannot use the static form (typeof-function is how the forms are told
+   * apart); such outputs are outside unflag's domain.
+   */
+  unready?: UnreadyDecl<I, Out>;
   resolve: (inputs: InputValues<I>) => z.output<Out>;
 };
 
@@ -44,6 +56,8 @@ export type FeatureProvenance = {
   overridden: boolean;
   underlying?: unknown;
   staleOverrideDiscarded?: { attempted: unknown; reason: string };
+  unreadyFallback?: boolean;
+  awaitingInputs?: readonly string[];
 };
 
 export type ResolveResult<S> = {
@@ -60,7 +74,7 @@ export type ResolveOptions = { onViolation?: ViolationHandler };
 
 export type FeatureSet<I extends InputsShape, F> = {
   readonly inputs: I;
-  resolve(inputs: InputValues<I>, opts?: ResolveOptions): ResolveResult<StateOf<F>>;
+  resolve(inputs: ResolveInputs<I>, opts?: ResolveOptions): ResolveResult<StateOf<F>>;
   graph(): Record<Extract<keyof F, string>, Record<string, readonly string[]>>;
   builder(baseline: InputValues<I>): (overrides?: Partial<StateOf<F>>) => StateOf<F>;
   schemas: { [K in keyof F]: z.ZodType };
