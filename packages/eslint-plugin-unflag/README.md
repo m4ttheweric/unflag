@@ -20,19 +20,29 @@ export default tseslint.config({
       restricted: [{ importSource: '../rawConfig' }, { importSource: './rawConfig' }],
       allowIn: ['**/features/**', '**/App.tsx', '**/rawConfig.ts'],
     }],
+    'unflag/require-unready-for-deferred-reads': 'error',
   },
 });
 ```
 
-`@m4ttheweric/eslint-plugin-unflag` ships one rule, `unflag/no-raw-config-reads`, that
-restricts raw config imports/reads to the modules you allow (typically the
-`*.features.ts` files and nothing else), so a stray `flags['some-flag']` read
-or raw config import creeping into a component gets caught by the linter
-instead of a reviewer. `restricted` entries are either `{ importSource }`
-(bans an import specifier) or `{ objectPattern }` (bans a dotted
-member-access chain, e.g. `window.__FLAGS__.foo`); `allowIn` is a picomatch
-glob allowlist, defaulting to `['**/*.features.ts', '**/features/**']` when
-omitted.
+`@m4ttheweric/eslint-plugin-unflag` ships two rules.
+
+`unflag/no-raw-config-reads` restricts raw config imports/reads to the
+modules you allow (typically the `*.features.ts` files and nothing else), so
+a stray `flags['some-flag']` read or raw config import creeping into a
+component gets caught by the linter instead of a reviewer. `restricted`
+entries are either `{ importSource }` (bans an import specifier) or
+`{ objectPattern }` (bans a dotted member-access chain, e.g.
+`window.__FLAGS__.foo`); `allowIn` is a picomatch glob allowlist, defaulting
+to `['**/*.features.ts', '**/features/**']` when omitted.
+
+`unflag/require-unready-for-deferred-reads` catches the `defineFeatures`
+mistake that only throws at runtime: a feature whose `reads` names a
+`deferredInput` input but declares no `unready` fallback. It also flags the
+opposite, dead config -- an `unready` on a feature that reads no deferred
+input -- unless `inputs` contains a spread, since an unseen spread key could
+be deferred. It takes no options and only recognizes `defineFeatures` /
+`deferredInput` imported (any local alias) from `@m4ttheweric/unflag`.
 
 See [`@m4ttheweric/unflag`](https://github.com/m4ttheweric/unflag/tree/main/packages/unflag)
 for the library this rule enforces.
