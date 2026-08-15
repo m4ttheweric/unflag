@@ -1,4 +1,4 @@
-import type { Rule } from 'eslint';
+import type { Rule, Scope } from 'eslint';
 
 const IMPORT_SOURCE = '@m4ttheweric/unflag';
 const DEFINE_FEATURES = 'defineFeatures';
@@ -7,6 +7,7 @@ const DEFERRED_INPUT = 'deferredInput';
 type ObjectExpr = Extract<Rule.Node, { type: 'ObjectExpression' }>;
 type PropertyNode = Extract<Rule.Node, { type: 'Property' }>;
 type CallExpr = Extract<Rule.Node, { type: 'CallExpression' }>;
+type IdentifierNode = Extract<Rule.Node, { type: 'Identifier' }>;
 
 /**
  * A non-computed property's static key name: an Identifier's `name`, or a
@@ -46,9 +47,39 @@ function hasSpread(obj: ObjectExpr): boolean {
   return obj.properties.some(p => p.type === 'SpreadElement');
 }
 
-/** The imported name a call's callee resolves to via `importedNames`, if any. */
-function calleeImportedName(call: CallExpr, importedNames: Map<string, string>): string | undefined {
-  return call.callee.type === 'Identifier' ? importedNames.get(call.callee.name) : undefined;
+/**
+ * The imported name a call's callee identifier resolves to, via ESLint's
+ * lexical scope analysis -- not name-matching against `tracked`. `tracked`
+ * maps each ImportSpecifier node (imported from IMPORT_SOURCE) to its
+ * imported name; a reference only counts when its resolved variable's
+ * definition IS one of those specifier nodes. A shadowing parameter, local
+ * `const`, etc. resolves to a *different* variable (a non-import
+ * definition), so it correctly falls through to `undefined` rather than a
+ * false match -- the false positive CodeRabbit caught on the file-wide
+ * name map this replaces.
+ */
+function resolveCalleeImport(
+  call: CallExpr,
+  sourceCode: Rule.RuleContext['sourceCode'],
+  tracked: Map<object, string>,
+): string | undefined {
+  if (call.callee.type !== 'Identifier') return undefined;
+  const identifier = call.callee as IdentifierNode;
+
+  let scope: Scope.Scope | null = sourceCode.getScope(identifier);
+  while (scope) {
+    const ref = scope.references.find(r => r.identifier === identifier);
+    if (ref) {
+      const variable = ref.resolved;
+      if (!variable) return undefined;
+      for (const def of variable.defs) {
+        if (def.type === 'ImportBinding' && tracked.has(def.node)) return tracked.get(def.node);
+      }
+      return undefined;
+    }
+    scope = scope.upper;
+  }
+  return undefined;
 }
 
 const rule: Rule.RuleModule = {
@@ -67,25 +98,28 @@ const rule: Rule.RuleModule = {
     },
   },
   create(context) {
-    // Local binding name -> imported name, for specifiers imported from
+    // ImportSpecifier node -> imported name, for specifiers imported from
     // IMPORT_SOURCE. The source string is matched exactly (same convention
-    // no-raw-config-reads documents: no alias/deep-path resolution), but a
-    // renamed local binding -- `defineFeatures as df` -- still resolves,
-    // because it's the *imported* name we key detection on, not the local one.
-    const importedNames = new Map<string, string>();
+    // no-raw-config-reads documents: no alias/deep-path resolution). Keyed
+    // by the specifier node itself (not its local name) so resolution can
+    // go through scope analysis: a renamed local binding -- `defineFeatures
+    // as df` -- still resolves, but a *shadowing* parameter or local
+    // declaration with the same name does not, because it resolves to a
+    // different variable entirely.
+    const trackedImports = new Map<object, string>();
 
     return {
       ImportDeclaration(node) {
         if (node.source.value !== IMPORT_SOURCE) return;
         for (const specifier of node.specifiers) {
           if (specifier.type === 'ImportSpecifier' && specifier.imported.type === 'Identifier') {
-            importedNames.set(specifier.local.name, specifier.imported.name);
+            trackedImports.set(specifier, specifier.imported.name);
           }
         }
       },
 
       CallExpression(node) {
-        if (calleeImportedName(node, importedNames) !== DEFINE_FEATURES) return;
+        if (resolveCalleeImport(node, context.sourceCode, trackedImports) !== DEFINE_FEATURES) return;
 
         const arg = node.arguments[0];
         if (!arg || arg.type !== 'ObjectExpression') return;
@@ -104,7 +138,7 @@ const rule: Rule.RuleModule = {
           const value = (p as PropertyNode).value;
           if (
             value.type === 'CallExpression' &&
-            calleeImportedName(value as CallExpr, importedNames) === DEFERRED_INPUT
+            resolveCalleeImport(value as CallExpr, context.sourceCode, trackedImports) === DEFERRED_INPUT
           ) {
             deferred.add(key);
           }
@@ -120,6 +154,13 @@ const rule: Rule.RuleModule = {
           const featureName = staticKeyName(featureProp);
           if (!featureName || featureProp.value.type !== 'ObjectExpression') continue;
           const featureObj = featureProp.value as ObjectExpr;
+
+          // A spread on the feature object itself can carry `unready` or
+          // `reads` invisibly (`{ ...base, resolve }`), so neither
+          // diagnostic is provable -- skip the whole feature, same as a
+          // non-literal one. Distinct from `spread` above (inputs-level),
+          // which only ever suppresses deadUnready.
+          if (hasSpread(featureObj)) continue;
 
           const readsProp = findProperty(featureObj, 'reads');
           if (!readsProp || readsProp.value.type !== 'ObjectExpression') continue;

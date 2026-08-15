@@ -131,6 +131,103 @@ defineFeatures({
   },
 });`,
         },
+        // shadowed `defineFeatures` (function parameter) is not OUR defineFeatures --
+        // resolved by lexical scope, not by name, so this violating-looking body is never analyzed
+        {
+          code: `import { defineFeatures, deferredInput, input } from '@m4ttheweric/unflag';
+import { z } from 'zod/v4';
+
+function setup(defineFeatures) {
+  return defineFeatures({
+    inputs: { flags: input(), strategy: deferredInput() },
+    features: {
+      chatMode: {
+        reads: { strategy: ['mode'] },
+        output: z.string(),
+        resolve: ({ strategy }) => (strategy ? strategy.mode : 'off'),
+      },
+    },
+  });
+}`,
+        },
+        // shadowed `defineFeatures` (local declaration) -- same as above, different shadowing form
+        {
+          code: `import { defineFeatures, deferredInput, input } from '@m4ttheweric/unflag';
+import { z } from 'zod/v4';
+
+function setup() {
+  const defineFeatures = (cfg) => cfg;
+  return defineFeatures({
+    inputs: { flags: input(), strategy: deferredInput() },
+    features: {
+      chatMode: {
+        reads: { strategy: ['mode'] },
+        output: z.string(),
+        resolve: ({ strategy }) => (strategy ? strategy.mode : 'off'),
+      },
+    },
+  });
+}`,
+        },
+        // shadowed `deferredInput` (function parameter): `defineFeatures` is genuine and analyzed,
+        // but the shadowed `deferredInput()` call doesn't count toward the deferred set, so its
+        // reader isn't flagged
+        {
+          code: `import { defineFeatures, deferredInput, input } from '@m4ttheweric/unflag';
+import { z } from 'zod/v4';
+
+function setup(deferredInput) {
+  return defineFeatures({
+    inputs: { flags: input(), strategy: deferredInput() },
+    features: {
+      chatMode: {
+        reads: { strategy: ['mode'] },
+        output: z.string(),
+        resolve: ({ strategy }) => (strategy ? strategy.mode : 'off'),
+      },
+    },
+  });
+}`,
+        },
+        // feature-level spread: a visible deferred read but no visible `unready` -- the spread
+        // could carry `unready` invisibly, so the whole feature is skipped, not flagged
+        {
+          code: `import { defineFeatures, deferredInput, input } from '@m4ttheweric/unflag';
+import { z } from 'zod/v4';
+import { baseFeature } from './shared';
+
+defineFeatures({
+  inputs: { flags: input(), strategy: deferredInput() },
+  features: {
+    chatMode: {
+      ...baseFeature,
+      reads: { strategy: ['mode'] },
+      output: z.string(),
+      resolve: ({ strategy }) => (strategy ? strategy.mode : 'off'),
+    },
+  },
+});`,
+        },
+        // feature-level spread: visible `unready` over plain reads -- the spread could carry a
+        // deferred `reads` entry invisibly, so the whole feature is skipped, not flagged dead
+        {
+          code: `import { defineFeatures, input } from '@m4ttheweric/unflag';
+import { z } from 'zod/v4';
+import { baseFeature } from './shared';
+
+defineFeatures({
+  inputs: { flags: input() },
+  features: {
+    attachments: {
+      ...baseFeature,
+      reads: { flags: ['killSwitch'] },
+      output: z.boolean(),
+      unready: false,
+      resolve: ({ flags }) => !flags.killSwitch,
+    },
+  },
+});`,
+        },
       ],
       invalid: [
         // the UNFLAG-7 repro: reads a deferred input, no `unready` declared
